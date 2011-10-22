@@ -1,0 +1,18 @@
+path = File.expand_path "../", __FILE__
+
+task :default => [:compile_js]
+
+desc "Compiles js for faster page load"
+task :compile_js do
+  all = "#{path}/fivetastic/vendor/all.js"
+  `rm -f #{all}`
+  file = File.open all, "w"
+  Dir.glob("#{path}/fivetastic/vendor/*/*.js").each do |f|
+    file.puts File.read(f)
+  end
+  Dir.glob("#{path}/fivetastic/vendor/*.js").each do |f|
+    file.puts File.read(f)
+  end
+  file.puts File.read("#{path}/fivetastic/init.js")
+  file.close
+end
