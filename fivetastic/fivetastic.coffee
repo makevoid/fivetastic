@@ -11,19 +11,20 @@ class FiveTastic
     this.load_index()
     # console.log "fivetastic started"
     
-    
-  # 
+  # rendering
   
   render: ->
-    yield = "lool"
-    html = @layout
-    html.find("#content").html @page
-    html = html.get(1)
+    page = this.haml(@page)
+    console.log @page
+    html = this.haml(@layout, {yield: page})
+    html = $(html).get(1)
     @body.html html
     @body.trigger("page_loaded")
+    
+  haml: (html, vars={}) ->
+    haml.compileStringToJs(html)(vars)
   
   assign: (name, html) ->
-    html = $(html)  
     if name == "layout"
       @layout = html
     else
@@ -31,13 +32,13 @@ class FiveTastic
   
   # events
   
-  haml_loaded: (name, html) ->
+  got_haml: (name, haml_string) ->
     haml = _.detect(@hamls, (h) -> h.name == name )
     haml.loaded = true
     all_loaded = _.all(@hamls, (h) -> h.loaded == true)
-    this.assign name, html
+    this.assign name, haml_string
     this.render() if all_loaded
-    html
+    haml_string
       
   # haml
     
@@ -50,8 +51,7 @@ class FiveTastic
   load_haml: (name) ->
     @hamls.push { name: name, loaded: false }
     $.get "/haml/#{name}.haml", (data) =>
-      html = haml.compileStringToJs(data)({yield: "lol"})
-      this.haml_loaded name, html
+      this.got_haml name, data
       
       
 g = window
@@ -59,4 +59,3 @@ g.fivetastic = new FiveTastic
 
 unless g.jasmine
   g.fivetastic.start()
-  
