@@ -3,8 +3,10 @@ class FiveTastic
     @hamls = []
     # @layout = null
     # @page = null
+    @body = $("body")
     
-  start: ->  
+  start: (body) ->  
+    @body = body if body
     this.load_layout()
     this.load_index()
     # console.log "fivetastic started"
@@ -16,7 +18,8 @@ class FiveTastic
     html = @layout
     html.find("#content").html @page
     html = html.get(1)
-    $("body").html html
+    @body.html html
+    @body.trigger("page_loaded")
   
   assign: (name, html) ->
     html = $(html)  
@@ -49,11 +52,10 @@ class FiveTastic
       html = haml.compileStringToJs(data)({})
       this.haml_loaded name, html
       
+      
+g = window
+g.fivetastic = new FiveTastic
 
-# go go go!
-
-five = new FiveTastic 
-five.start()
-  
-  
+unless g.jasmine
+  g.fivetastic.start()
   
