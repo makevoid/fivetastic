@@ -15,6 +15,7 @@ class FiveTastic
   # 
   
   render: ->
+    yield = "lool"
     html = @layout
     html.find("#content").html @page
     html = html.get(1)
@@ -49,7 +50,7 @@ class FiveTastic
   load_haml: (name) ->
     @hamls.push { name: name, loaded: false }
     $.get "/haml/#{name}.haml", (data) =>
-      html = haml.compileStringToJs(data)({})
+      html = haml.compileStringToJs(data)({yield: "lol"})
       this.haml_loaded name, html
       
       
