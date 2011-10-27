@@ -1,12 +1,15 @@
-!!!
-%html
-  %head
-    -# %script{ src: "https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js" }
-  %body
+-# contents in #head and #body will be appended to head and body tags in index.html
+%div
+  #head
+    %title FiveTastic
+    %link{ type: "text/sass", href: "/sass/app.sass" }
+  
+  #body
     #container
       %header
         %h1 FiveTastic
       #content
         != yield
-        
+  
       %footer
+
