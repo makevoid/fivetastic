@@ -9,9 +9,30 @@ To start your own site/app with FiveTastic:
 - fork/download fivetastic (forking is good so you can update to the latest version fairly easily)
    
 
-host it on your usual web server (apache, nginx etc) or type this in the fivetastic folder:
+type this in the fivetastic folder:
 
-    python -m SimpleHTTPServer 3000
+    rackup
+
+
+
+note: if you don't have rack
+
+    gem install bundler
+    bundle install
+
+in the app's folder
+
+### Deploy:
+
+host it on your usual web server (apache, nginx etc) by putting this in your .htaccess or virtualhost
+
+apache:
+
+    TODO: apache vhost
+
+nginx:
+
+    TODO: apache vhost
 
 
 ### Guide:
