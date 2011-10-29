@@ -17,9 +17,22 @@ class FiveTastic
     page = this.haml(@page)
     console.log @page
     html = this.haml(@layout, {yield: page})
-    html = $(html).get(1)
-    @body.html html
+    $("head").append $(html).find("#head").html()
+    html = $(html).find("#body").html()
+    @body.append html
+    $("#loading").remove()
+    this.sass()
     @body.trigger("page_loaded")
+    
+  sass: ->  
+    $("link[type='text/sass']").each( (idx, script) ->
+    
+      path = $(script).attr("href")
+      $.get(path, (data)  -> 
+        sass = exports.render(data)
+        $("head").append("<style id='sass'>#{sass}</style>")
+      )
+    )
     
   haml: (html, vars={}) ->
     haml.compileStringToJs(html)(vars)
