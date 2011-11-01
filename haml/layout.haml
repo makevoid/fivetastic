@@ -3,12 +3,18 @@
   #head
     %title FiveTastic
     %link{ type: "text/sass", href: "/sass/app.sass" }
-  
+    %link{ type: "text/sass", href: "/sass/theme_red.sass", id: "theme" }
   #body
     #container
       %header
         %h1 
           %a{ href: "/" } FiveTastic
+        %nav
+          %a{ href: "/page1" } page1
+          
+        .themes
+          %button.red red
+          %button.blue blue
       #content
         != yield
   
