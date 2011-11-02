@@ -108,6 +108,7 @@ class FiveTastic
     $.get "/routes.json", (data) ->
       # val = eval("(#{data})")
       val = JSON.parse data
+      true
       
   # state
   

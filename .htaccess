@@ -1,0 +1,4 @@
+RewriteEngine On
+RewriteRule ^[\w-_]+$ /index.html
+
+# note: you must set AllowOverride directive to FileInfo (or All) in your vhost configuration
