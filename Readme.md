@@ -114,4 +114,21 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 - sass support (with reloading)
 - update vendored files
+
+
+## Contributing:
+
+- fork the project, make changes
+- run tests in your browser (fivetastic/spec/all.html) 
+- send me a pull request
+
+
+### things to know
+
+if you make changes to javascript files, run:
+
+    rake compile_js
+
+to update vendor/all.js that contains all vendored libs and init.js, all in one file
+(for coffee files is not needed because they're compiled clientside)
   
