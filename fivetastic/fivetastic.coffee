@@ -26,6 +26,8 @@ class FiveTastic
     # console.log "page: ", @page
     html = this.haml(@layout, {yield: page})
     $("head").append $(html).find("#head").html()
+    $("title").html $(html).find("#head #title").text()
+    
     html = $(html).find("#body").html()
     @body.children().remove()
     @body.append html
@@ -62,11 +64,12 @@ class FiveTastic
     self = this
     $("body").delegate "a", "click", (evt) ->
     # $("a").live "click", (evt) ->
-      host = "http://localhost:3000/"
+      host = "http://#{window.location.host}/"
+      # console.log "host: ", host
+      # console.log "href: ", this["href"]
       link = this["href"].replace host, ''
-      # console.log "link: ", link
       link = "index" if link == ""
-      # 
+      
       try 
         self.load_page_js link
       catch error
@@ -107,7 +110,11 @@ class FiveTastic
       
     $.get "/routes.json", (data) ->
       # val = eval("(#{data})")
-      val = JSON.parse data
+      try
+        val = JSON.parse data
+      catch error
+        console.log "error parsing json: ", error
+        
       true
       
   # state
