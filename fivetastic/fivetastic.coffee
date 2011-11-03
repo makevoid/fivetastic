@@ -4,6 +4,7 @@ class FiveTastic
     # @layout = null
     # @page = null
     @body = $("body")
+    @routes = null
     
   start: (body) ->  
     @body = body if body
@@ -34,7 +35,7 @@ class FiveTastic
     $("#loading").remove()
     $("body").delegate "a", "click", (evt) ->
       evt.preventDefault()
-    this.load_routes()
+    this.attach_clicks()
     this.sass()
     @body.trigger("page_loaded")
     
@@ -50,7 +51,14 @@ class FiveTastic
     )
     
   haml: (html, vars={}) ->
+    # TODO: throw an exception to be catched
+    #
+    # try
+    # console.log "compiling haml..."
     haml.compileStringToJs(html)(vars)
+    # console.log "finished"
+    # catch error
+    #       console.log error
   
   assign: (name, html) ->
     if name == "layout"
@@ -68,10 +76,19 @@ class FiveTastic
       # console.log "host: ", host
       # console.log "href: ", this["href"]
       link = this["href"].replace host, ''
-      link = "index" if link == ""
+      link = "index" if link == "" # FIXME: four lines down
       
       try 
-        self.load_page_js link
+        self.routes_get(link, (routes) ->
+          link = "" if link == "index" # FIXME: four lines up
+          link = "/#{link}"
+          console.log "link: ", link, "routes: ", routes
+          window.routes = routes
+          route = _.detect(_(routes).keys(), (route) -> route == link )
+          page = routes[route]
+          console.log page
+          self.load_page_js page
+        )
       catch error
         console.log error
     
@@ -96,6 +113,7 @@ class FiveTastic
       this.render_js data
     
   load_page: (page) ->
+    # TODO: implement other markups like markdown and mustache/handlebars
     this.load_haml page
     
   load_haml: (name) ->
@@ -105,17 +123,25 @@ class FiveTastic
       
   # routes
   
-  load_routes: ->
-    this.attach_clicks()
-      
-    $.get "/routes.json", (data) ->
-      # val = eval("(#{data})")
-      try
-        val = JSON.parse data
-      catch error
-        console.log "error parsing json: ", error
-        
-      true
+  
+  routes_get: (link, got) ->
+    if @routes
+      got @routes
+    else
+      $.getJSON "/routes.json", (data) =>
+        @routes = data
+        got @routes  
+  
+
+  # here follows an implementation for libraries without getJSON
+  #
+  # $.get "/routes.json", (data) ->
+  #   # val = eval("(#{data})")
+  #   try
+  #     val = JSON.parse data
+  #   catch error
+  #     console.log "error parsing json: ", error
+
       
   # state
   
