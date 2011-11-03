@@ -15,11 +15,12 @@ class FiveTastic
     
   # rendering
   
-  render_js: (page) ->
+  render_js: (name, page) ->
     # console.log "page: ", page
     html = this.haml page
     # console.log "html: ", html
     $("#content").html html
+    @body.trigger("page_js_loaded", [name])
     
   
   render: ->
@@ -111,7 +112,7 @@ class FiveTastic
     
   load_page_js: (page) ->
     $.get "/haml/#{page}.haml", (data) =>
-      this.render_js data
+      this.render_js page, data
     
   load_page: (page) ->
     # TODO: implement other markups like markdown and mustache/handlebars
