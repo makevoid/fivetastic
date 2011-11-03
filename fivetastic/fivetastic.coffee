@@ -34,7 +34,9 @@ class FiveTastic
     @body.append html
     $("#loading").remove()
     $("body").delegate "a", "click", (evt) ->
-      evt.preventDefault()
+      host = "http://#{window.location.host}/"
+      if this["href"].match host
+        evt.preventDefault()
     this.attach_clicks()
     this.sass()
     @body.trigger("page_loaded")
@@ -73,27 +75,26 @@ class FiveTastic
     $("body").delegate "a", "click", (evt) ->
     # $("a").live "click", (evt) ->
       host = "http://#{window.location.host}/"
-      # console.log "host: ", host
-      # console.log "href: ", this["href"]
-      link = this["href"].replace host, ''
-      link = "index" if link == "" # FIXME: four lines down
+      if this["href"].match host
+        link = this["href"].replace host, ''
+        link = "index" if link == "" # FIXME: four lines down
       
-      try 
-        self.routes_get(link, (routes) ->
-          link = "" if link == "index" # FIXME: four lines up
-          link = "/#{link}"
-          console.log "link: ", link, "routes: ", routes
-          window.routes = routes
-          route = _.detect(_(routes).keys(), (route) -> route == link )
-          page = routes[route]
-          console.log page
-          self.load_page_js page
-        )
-      catch error
-        console.log error
+        try 
+          self.routes_get(link, (routes) ->
+            link = "" if link == "index" # FIXME: four lines up
+            link = "/#{link}"
+            console.log "link: ", link, "routes: ", routes
+            window.routes = routes
+            route = _.detect(_(routes).keys(), (route) -> route == link )
+            page = routes[route]
+            console.log page
+            self.load_page_js page
+          )
+        catch error
+          console.log error
     
-      self.push_state link
-      evt.preventDefault()
+        self.push_state link
+        evt.preventDefault()
   
   # events
   
@@ -172,8 +173,6 @@ class FiveTastic
     )
   
   
-  
-      
         
 g = window
 g.fivetastic = new FiveTastic
