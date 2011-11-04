@@ -75,15 +75,17 @@ need support:
 
 It's static! host it everywhere!
 
-I like to use this in dev:
+You can apache, nginx etc..
 
-    python -m SimpleHTTPServer 3000
+### dev mode:
 
-on apache, nginx etc..
+To spawn the server in development mode:
 
-### dev mode (to be implemented):
+    rackup
 
-    ruby config.ru
+you may need first to:
+
+    gem install rack 
 
 
 ### default folders and files:
@@ -131,3 +133,14 @@ if you make changes to javascript files, run:
 to update vendor/all.js that contains all vendored libs and init.js, all in one file
 (for coffee files is not needed because they're compiled clientside)
   
+  
+### run specs:
+
+the specs are made with Jasmine and Coffeescript, and are contained in the following file:
+
+    /fivetastic/spec/fivetastic_spec.coffee
+
+
+go to this url to run them:
+
+    http://localhost:3000/fivetastic/spec/all.html
