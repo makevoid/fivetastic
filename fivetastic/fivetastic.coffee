@@ -8,8 +8,20 @@ class FiveTastic
     
   start: (body) ->  
     @body = body if body
+    
     this.load_page "layout"
-    this.load_page "index"
+    
+    window.location.pathname
+    
+    if this.index_path()
+      this.load_page "index"
+    else
+      this.routes_get (routes) =>
+        path = window.location.pathname
+        page = this.page_from_path routes, path
+        this.load_page page
+    
+      
     this.theme_buttons()
     # console.log "fivetastic started"
     
@@ -75,26 +87,19 @@ class FiveTastic
     self = this
     $("body").delegate "a", "click", (evt) ->
     # $("a").live "click", (evt) ->
-      host = "http://#{window.location.host}/"
+      host = "http://#{window.location.host}"
       if this["href"].match host
-        link = this["href"].replace host, ''
-        link = "index" if link == "" # FIXME: four lines down
-      
+        path = this["href"].replace host, ''
+        
         try 
-          self.routes_get(link, (routes) ->
-            link = "" if link == "index" # FIXME: four lines up
-            link = "/#{link}"
-            console.log "link: ", link, "routes: ", routes
-            window.routes = routes
-            route = _.detect(_(routes).keys(), (route) -> route == link )
-            page = routes[route]
-            console.log page
+          self.routes_get (routes) ->
+            # console.log "path: ", path
+            page = self.page_from_path routes, path
             self.load_page_js page
-          )
+            self.push_state path
         catch error
           console.log error
     
-        self.push_state link
         evt.preventDefault()
   
   # events
@@ -125,8 +130,15 @@ class FiveTastic
       
   # routes
   
+  page_from_path: (routes, path) ->
+    route = _.detect(_(routes).keys(), (route) -> route == path )
+    routes[route]
   
-  routes_get: (link, got) ->
+  index_path: ->
+    path = window.location.pathname 
+    path == "/" || path == "/index.html"
+  
+  routes_get: (got) ->
     if @routes
       got @routes
     else
