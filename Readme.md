@@ -112,7 +112,6 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 ### TODO:
 
-- sass support (with reloading)
 - update vendored files
 
 
