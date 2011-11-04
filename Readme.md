@@ -77,15 +77,7 @@ It's static! host it everywhere!
 
 You can apache, nginx etc..
 
-### dev mode:
-
-To spawn the server in development mode:
-
-    rackup
-
-you may need first to:
-
-    gem install rack 
+note: for apache you need to copy the .htaccess file and have mod_rewrite module enabled
 
 
 ### default folders and files:
