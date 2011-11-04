@@ -10,6 +10,7 @@ guard 'livereload' do
   watch(%r{coffee/.+\.(coffee)})
   watch(%r{routes\.json})
   watch(%r{index\.html})
+  watch(%r{fivetastic/spec/all\.html})
 end
 
 

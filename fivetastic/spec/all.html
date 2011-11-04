@@ -18,10 +18,17 @@
   $.get("../fivetastic.coffee", function(data) {
     CoffeeScript.eval(data)
     //
-    var spec = "fivetastic_spec.coffee"
+    var spec = "setup.coffee"
     $.get(spec, function(data) {
       CoffeeScript.eval(data)
-      execute_suite()
+      
+      $("#events").bind("page_loaded", function(){
+        var spec = "fivetastic_spec.coffee"
+        $.get(spec, function(data) {
+          CoffeeScript.eval(data)
+          execute_suite()
+        })
+      })
       // window.jasmine_context()
     })
   })    
