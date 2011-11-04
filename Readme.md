@@ -1,5 +1,5 @@
 # FiveTastic
-### CoffeeScript, Sass and HAML at your disposal 
+### create sites and apps with HAML, CoffeeScript and Sass on the clientside
 ### the content it's static - you can deploy everywhere!
 
 ### Intro:
