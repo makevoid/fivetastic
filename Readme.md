@@ -80,6 +80,32 @@ You can apache, nginx etc..
 note: for apache you need to copy the .htaccess file and have mod_rewrite module enabled
 
 
+### Cloud9 IDE Integration
+
+To make a fivetastic app and develop it easily online:
+
+- fork the makevoid/fivetastic repo (should be this one)
+- go into your cloud9 account on http://cloud9ide.com
+- make sure github integration is activated
+- choose the project from the list and clone it
+- open the project
+- in the shell/cli at the bottom of the editor type: 
+
+>
+
+    npm install coffeee-script
+
+- press the '> run' button or 'Run Configurations...' to open the run configurations
+- add a new run configuration
+- choose a name and put "deploy/cloud9.js" as 'File path'
+- press '> run'
+- click on the first url/link appeared in console (should be something like 'http://fivetastic.username.cloud9ide.com')
+
+you should see fivetastic default index page, you can remove the default haml/sass and roll your own!
+
+enjoy!
+
+
 ### default folders and files:
 
     / 
