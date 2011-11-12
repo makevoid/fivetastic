@@ -1,6 +1,7 @@
 class FiveTastic
   constructor: ->
     @hamls = []
+    @sasses = []
     # @layout = null
     # @page = null
     @body = $("body")
@@ -53,15 +54,23 @@ class FiveTastic
     this.attach_clicks()
     this.sass()
     @body.trigger("page_loaded")
-    
+  
+  render_sass: ->
+    sasses = _(@sasses).sortBy (sass) -> sass.idx
+    for sass in sasses
+      $("head").append("<style class='sass'#{sass.id}>#{sass.css}</style>")  
+  
   sass: (theme) ->  
     id = if theme then "#theme" else ""
+    self = this
     $("link[type='text/sass']#{id}").each( (idx, script) ->
       path = if theme then "/sass/theme_#{theme}.sass" else $(script).attr("href")
+      
+      self.sasses.push { path: path, loaded: false }
       $.get(path, (data)  -> 
         sass = exports.render(data)
         id = " id='#{theme}'" if theme
-        $("head").append("<style class='sass'#{id}>#{sass}</style>")
+        self.got_sass(path, idx, sass, id)
       )
     )
     
@@ -103,6 +112,14 @@ class FiveTastic
         evt.preventDefault()
   
   # events
+  
+  got_sass: (path, idx, css, elem_id) ->
+    sass = _.detect(@sasses, (h) -> h.path == path )
+    sass.css = css
+    sass.loaded = true
+    sass.elem_id = elem_id
+    all_loaded = _.all(@sasses, (h) -> h.loaded == true)
+    this.render_sass() if all_loaded
   
   got_haml: (name, haml_string) ->
     haml = _.detect(@hamls, (h) -> h.name == name )
@@ -184,7 +201,6 @@ class FiveTastic
       $(".sass #theme").remove()   
       self.sass theme
     )
-  
   
         
 g = window
