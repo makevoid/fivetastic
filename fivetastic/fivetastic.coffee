@@ -12,8 +12,6 @@ class FiveTastic
     
     this.load_page "layout"
     
-    window.location.pathname
-    
     if this.index_path()
       this.load_page "index"
     else
@@ -58,19 +56,27 @@ class FiveTastic
   render_sass: ->
     sasses = _(@sasses).sortBy (sass) -> sass.idx
     for sass in sasses
-      $("head").append("<style class='sass'#{sass.id}>#{sass.css}</style>")  
+      $("head").append("<style class='sass'#{sass.elem_id}>#{sass.css}</style>")  
   
-  sass: (theme) ->  
+  sass: (theme, async) ->  
     id = if theme then "#theme" else ""
     self = this
     $("link[type='text/sass']#{id}").each( (idx, script) ->
       path = if theme then "/sass/theme_#{theme}.sass" else $(script).attr("href")
       
-      self.sasses.push { path: path, loaded: false }
+      idx = self.sasses.length + 1 if async
+      
+      tag_id = if theme 
+        " id='#{theme}'" 
+      else
+        ""
+        
+      self.sasses.push { idx: idx, loaded: false, tag_id: tag_id }
       $.get(path, (data)  -> 
         sass = exports.render(data)
-        id = " id='#{theme}'" if theme
-        self.got_sass(path, idx, sass, id)
+        # console.log theme
+      
+        self.got_sass(idx, sass)
       )
     )
     
@@ -113,12 +119,12 @@ class FiveTastic
   
   # events
   
-  got_sass: (path, idx, css, elem_id) ->
-    sass = _.detect(@sasses, (h) -> h.path == path )
+  got_sass: (idx, css) ->
+    sass = _.detect(@sasses, (h) -> h.idx == idx )
     sass.css = css
     sass.loaded = true
-    sass.elem_id = elem_id
     all_loaded = _.all(@sasses, (h) -> h.loaded == true)
+    # console.log @sasses
     this.render_sass() if all_loaded
   
   got_haml: (name, haml_string) ->
@@ -199,7 +205,7 @@ class FiveTastic
     $("body").delegate(".themes button", "click", ->
       theme = $(this).attr("class")
       $(".sass #theme").remove()   
-      self.sass theme
+      self.sass theme, true # async
     )
   
         
