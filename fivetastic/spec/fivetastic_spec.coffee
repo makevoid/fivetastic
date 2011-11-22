@@ -1,17 +1,14 @@
+# $("body").append "<div id='events'></div>"
+# events = $("#events")
+# g = window
+# g.fivetastic.start(events)
 
-describe( "Jasmine", ->
-  
-  it "should setup the specs", ->
-    window.hide_fivetastic()
-  
-  it "should launch fivetastic", ->
-    events_text = $("#events").text()
-    expect(events_text).toMatch /FiveTastic/
 
-  it "should load index page", ->
-    events_text = $("#events").text()
-    expect(events_text).toMatch /Hello World/
-    
+describe "FiveTastic", ->
   
-    
-)
+  it "should load", ->
+    # console.log FiveTastic
+    expect(true).toEqual true
+    setFixtures(sandbox({class: 'my-class'}))
+    # $('#sandbox').myTestedClassRemoverPlugin()
+    expect($('#sandbox')).toHaveClass('my-class')

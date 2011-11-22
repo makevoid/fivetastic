@@ -2,6 +2,8 @@
 ### create sites and apps with HAML, CoffeeScript and Sass on the clientside
 ### the content it's static - you can deploy everywhere!
 
+http://fivetastic.org
+
 ### Intro:
 
 To start your own site/app with FiveTastic:
@@ -52,12 +54,13 @@ for the default page:
 
 ### Routes
 
+basic routes support is done, see routes.json
+
 TODO: Routing system to be defined.... 
 
 need support:
-- routes
-- history push/popState
-- seo requests (ruby-rack/php fallback)
+- complex routes
+- seo requests (ruby-rack/php/static fallback)
 
 
 ### Features:
@@ -132,13 +135,14 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 ### TODO:
 
+- rake task to generate RapidWeaver Template
 - update vendored files
 
 
 ## Contributing:
 
 - fork the project, make changes
-- run tests in your browser (fivetastic/spec/all.html) 
+- run tests in your browser (see specs section below) 
 - send me a pull request
 
 
@@ -162,3 +166,23 @@ the specs are made with Jasmine and Coffeescript, and are contained in the follo
 go to this url to run them:
 
     http://localhost:3000/fivetastic/spec/all.html
+
+NEW:
+
+### setup test environment:
+
+FiveTastic uses jasmine-headless-webkit ruby gem to run specs, more infos here: http://johnbintz.github.com/jasmine-headless-webkit/
+
+Basically you have to install Qt
+for osx: 
+
+    brew install qt
+
+and the gem:
+
+    gem i jasmine-headless-webkit
+
+
+### run specs: 
+
+    time jasmine-headless-webkit -j spec/support/jasmine.yml

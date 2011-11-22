@@ -1,3 +1,5 @@
+
+
 $(function(){ // FIXME: remove domload scope (see next)
 
   // var coffees_loaded = 0
@@ -23,8 +25,14 @@ $(function(){ // FIXME: remove domload scope (see next)
     "/fivetastic/fivetastic",
     "/coffee/app"
   ])
+  // console.log($("body").html())
+  
+  
   
 })
+
+
+
 
 // load_coffee('/fivetastic/fivetastic.coffee')
 // load_coffee('/coffee/app.coffee')

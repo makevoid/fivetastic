@@ -6,6 +6,7 @@ class FiveTastic
     # @page = null
     @body = $("body")
     @routes = null
+    @views_path = "/views" # "/haml"
     
   start: (body) ->  
     @body = body if body
@@ -139,17 +140,19 @@ class FiveTastic
   # haml
     
   load_page_js: (page) ->
-    $.get "/haml/#{page}.haml", (data) =>
+    $.get "#{@views_path}/#{page}.haml", (data) =>
       this.render_js page, data
     
-  load_page: (page) ->
+  load_page: (page, callback) ->
     # TODO: implement other markups like markdown and mustache/handlebars
-    this.load_haml page
+    this.load_haml page, callback
     
-  load_haml: (name) ->
+  load_haml: (name, callback) ->
     @hamls.push { name: name, loaded: false }
-    $.get "/haml/#{name}.haml", (data) =>
-      this.got_haml name, data
+    $.get "#{@views_path}/#{name}.haml", (data) =>
+      haml = this.got_haml name, data
+      callback(haml) if callback
+      haml
       
   # routes
   

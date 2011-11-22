@@ -16,3 +16,8 @@ task :compile_js do
   file.puts File.read("#{path}/fivetastic/init.js")
   file.close
 end
+
+task :spec do
+  puts "Hey! Run this command for executing the test suite:"
+  puts "jasmine-headless-webkit -j fivetastic/spec/jasmine.yml"
+end
