@@ -8,24 +8,21 @@
   #body
     #container
       %header
-        .nav_right
-          .fb-login-button Login
+        .themes
+          %p sass themes:
+          %button.red
+          %button.blue
           
         %h1 
-          %a{ href: "/" } Fb Connect
+          %a{ href: "/" } FiveTastic
           
         %nav
           %a{ href: "/" } Home
           %a{ href: "/page1" } Page 1
-          %a{ href: "/page2" } Page 2
-          
-
       .clear
           
       #content
         != yield
   
       %footer
-      
-      #fb-root
 
