@@ -63,15 +63,20 @@ need support:
 - seo requests (ruby-rack/php/static fallback)
 
 
-### Features:
+### Libraries:
 
 - Coffeescript
-- Haml
-- Sass
+- HAML
+- SASS
+- JQuery/Zepto
 
-### Features (to be implemented):
 
-- service to host sites/apps easily
+## Features:
+- loads HAML and SASS files asynchronously (ajax)
+- has layout file (reuse html)
+- handles history changes (pushState/onpopstate)
+- integrates editor to develop directly into the browser (CodeMirror editor, the files are saved into the browser's localStorage)
+- host it everywhere! (it's only html and js)
 
 
 ### Easy hosting!
@@ -135,6 +140,8 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 ### TODO:
 
+- full router support
+- markdown support
 - rake task to generate RapidWeaver Template
 - update vendored files
 

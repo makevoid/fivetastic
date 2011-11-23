@@ -54,15 +54,19 @@ class FiveTastic
     this.sass()
     @body.trigger("page_loaded")
   
-  render_sass: ->
+  render_all_sass: ->
     sasses = _(@sasses).sortBy (sass) -> sass.idx
     for sass in sasses
-      $("head").append("<style class='sass'#{sass.elem_id}>#{sass.css}</style>")  
+      this.append_style sass.css, sass.elem_id  
+    @body.trigger "sass_loadeds"
+  
+  append_style: (css, elem_id) ->
+    $("head").append("<style class='sass'#{elem_id || ''}>#{css}</style>")
   
   sass: (theme, async) ->  
     id = if theme then "#theme" else ""
     self = this
-    $("link[type='text/sass']#{id}").each( (idx, script) ->
+    $("link[type='text/sass']#{id}").each (idx, script) ->
       path = if theme then "/sass/theme_#{theme}.sass" else $(script).attr("href")
       
       idx = self.sasses.length + 1 if async
@@ -73,13 +77,15 @@ class FiveTastic
         ""
         
       self.sasses.push { idx: idx, loaded: false, tag_id: tag_id }
-      $.get(path, (data)  -> 
-        sass = exports.render(data)
+      $.get path, (data)  -> 
+        sass = self.render_sass data
         # console.log theme
       
-        self.got_sass(idx, sass)
-      )
-    )
+        self.got_sass idx, sass
+      
+    
+  render_sass: (sass) ->
+    exports.render sass
     
   haml: (html, vars={}) ->
     # TODO: throw an exception to be catched
@@ -126,7 +132,7 @@ class FiveTastic
     sass.loaded = true
     all_loaded = _.all(@sasses, (h) -> h.loaded == true)
     # console.log @sasses
-    this.render_sass() if all_loaded
+    this.render_all_sass() if all_loaded
   
   got_haml: (name, haml_string) ->
     haml = _.detect(@hamls, (h) -> h.name == name )
@@ -211,7 +217,58 @@ class FiveTastic
       self.sass theme, true # async
     )
   
+  # dev mode
+  
+  load_vendor_css: (name) ->
+    $("head").append "<link rel='stylesheet' href='/fivetastic/vendor/css/#{name}.css'>"
+    
+  
+  dev_mode: ->
+    console.log "fivetastic is running in dev mode"
+    
+    $("head").append "<script src='/fivetastic/vendor/codemirror.js'></script>"
+    
+    $("body").bind "page_loaded", =>
+      this.load_vendor_css "codemirror"
+      this.load_vendor_css "codemirror_themes/default"
+    
+      editor_template = "
+      <nav id='dev_controls'>
+        <a>Haml</a>
+        <a>Sass</a>
+        <a>Coffee</a>
+      </nav>
+      <div id='editor'>
+        <div class='close'>x</div>
+        <textarea id='code'>Antani</textarea>
+      </div>
+      "
+    
+      $("body").append editor_template
+      code_div = document.getElementById "code"
+      options = { mode: 'text/html', tabMode: 'indent', lineNumbers: true }
+      
+      editor = CodeMirror.fromTextArea code_div, options
+      # console.log editor
+      
+      @body.bind "sass_loadeds", =>
+        $.get "/fivetastic/vendor/sass/codemirror.sass", (sass) =>
+          css = this.render_sass sass
+          this.append_style css
+          
+
+          
+          $("#editor .close").bind "click", ->
+            $("#editor").hide()
         
+        
+      $("#dev_controls a").bind "click", ->
+        $(".CodeMirror-scroll").height $(window).height()
+        $("#editor").show()
+        editor.refresh()
+        $("#editor textarea").focus()
+      
+       
 g = window
 g.fivetastic = new FiveTastic
 
