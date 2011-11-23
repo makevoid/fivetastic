@@ -357,7 +357,7 @@ class FiveTastic
       $(".CodeMirror-scroll").height $(window).height()
       $("#editor").show()
       
-      theme = "neat"
+      theme = "default"
       this.load_theme theme
       
       @codemirror.refresh()
@@ -371,7 +371,8 @@ class FiveTastic
       type = _(@path.split(".")).last()
       switch type 
         when "coffee" then "text/x-coffeescript"
-        when "haml" then "text/plain"
+        when "haml" then "text/x-coffeescript"
+        # when "haml" then "text/haml" # TODO: haml mode for codemirror
         when "sass" then "text/css"
         else console.log "ERROR: type '#{type}' not detected"
           
