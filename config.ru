@@ -17,7 +17,8 @@ TYPES = {
   haml: "text/haml",
   md: "text/markdown",
   sass: "text/sass",
-  coffee: "text/coffeescript"
+  coffee: "text/x-coffeescript",
+  ico: "image/x-icon"
 }
 
 PATHS = JSON.parse( File.read("#{PATH}/routes.json") ).keys

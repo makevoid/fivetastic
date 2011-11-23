@@ -140,6 +140,10 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 ### TODO:
 
+- specs
+- rewrite using better modularity
+
+- editing preview
 - full router support
 - markdown support
 - rake task to generate RapidWeaver Template

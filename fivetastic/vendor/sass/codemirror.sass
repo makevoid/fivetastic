@@ -4,20 +4,35 @@
   height: 100%
   top: 0
   bottom: 0
-  background: #CCC
+  background: #EEE
   font-size: 1.4em
-  .close
+  nav, .close
     cursor: pointer
     position: absolute
-    top: 0 
-    right: 0
     z-index: 4
-    width: 10px
+    top: 0
     height: 30px
+  nav  
+    right: 70px
+    div
+      padding: 10px 20px 5px
+      background: #A0D3C6
+      font-size: 0.8em
+      float: left
+    div:hover
+      color: #FFF
+      background: #337766
+    div.spacer
+      background: transparent
+  .close  
     padding: 10px 20px
+    right: 0
+    width: 10px
     font-weight: bold
-    background: #C00
+    background: #C66
     color: #FFF
+  .close:hover
+    background: #C00    
   #code 
     height: 100%
 
@@ -30,3 +45,10 @@
   top: 10px
   a
     background: #600
+    
+#container.hsplit
+  margin: 0
+  overflow: scroll
+  position: absolute
+  top: 50%
+  width: 100%

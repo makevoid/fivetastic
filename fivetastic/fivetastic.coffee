@@ -223,6 +223,28 @@ class FiveTastic
     $("head").append "<link rel='stylesheet' href='/fivetastic/vendor/css/#{name}.css'>"
     
   
+  editor_template: ->
+    "
+    <nav id='dev_controls'> 
+      Edit:
+      <a data-file='views/layout.haml'>Layout</a>
+      <a data-file='views/index.haml'>Page</a>
+      <a data-file='sass/app.sass'>Style</a>
+      <a data-file='coffee/app.coffee'>Coffee</a>
+    </nav>
+    <div id='editor'>
+      <nav>        
+        <div class='screen_hsplit'>hsplit</div>
+        <!-- <div class='screen_vsplit'>vsplit</div> -->
+        <div class='screen_full'>full</div>
+        <div class='spacer'></div>
+        <div class='load'>load</div>
+      </nav>
+      <div class='close'>x</div>
+      <textarea id='code'></textarea>
+    </div>
+    "
+  
   dev_mode: ->
     console.log "fivetastic is running in dev mode"
     
@@ -232,23 +254,8 @@ class FiveTastic
       this.load_vendor_css "codemirror"
       this.load_vendor_css "codemirror_themes/default"
     
-      editor_template = "
-      <nav id='dev_controls'>
-        <a>Haml</a>
-        <a>Sass</a>
-        <a>Coffee</a>
-      </nav>
-      <div id='editor'>
-        <div class='close'>x</div>
-        <textarea id='code'>Antani</textarea>
-      </div>
-      "
-    
-      $("body").append editor_template
-      code_div = document.getElementById "code"
-      options = { mode: 'text/html', tabMode: 'indent', lineNumbers: true }
+      $("body").append this.editor_template()
       
-      editor = CodeMirror.fromTextArea code_div, options
       # console.log editor
       
       @body.bind "sass_loadeds", =>
@@ -256,21 +263,131 @@ class FiveTastic
           css = this.render_sass sass
           this.append_style css
           
+          $("#editor .close").bind "click", =>
+            this.editor.close()
+            
+          $("#editor .load").bind "click", =>
+            this.editor.load()
+            
+          $("#editor .screen_hsplit").bind "click", =>
+            this.editor.hsplit()
+            
+          $("#editor .screen_full").bind "click", =>
+            this.editor.hsplit_undo()
+            
+          $(window).bind "keydown", (evt) =>
+            S = 83
+            Y = 89
+            Z = 90
+            ESC = 27
 
-          
-          $("#editor .close").bind "click", ->
-            $("#editor").hide()
-        
-        
-      $("#dev_controls a").bind "click", ->
-        $(".CodeMirror-scroll").height $(window).height()
-        $("#editor").show()
-        editor.refresh()
-        $("#editor textarea").focus()
+            if evt.keyCode == ESC
+              this.editor.close()
+              
+            if evt.metaKey && evt.keyCode == S
+              this.editor.save()
+              evt.preventDefault() 
+              
+            if evt.metaKey && evt.keyCode == Z
+              this.editor.codemirror.undo()
+              
+            cmd_shift_z = evt.metaKey && evt.shiftKey && evt.keyCode == Z
+            cmd_y = evt.metaKey && evt.keyCode == Y
+            if cmd_shift_z || cmd_y
+              this.editor.codemirror.redo()
+              evt.preventDefault() if cmd_y
+            
+      $("#dev_controls a").bind "click", (evt) =>
+        path = $(evt.target).data("file")
+        this.editor.show path
+  
+  
+  editor: 
+    
+    hsplit: ->
+      preview_margin = 10
       
+      height = $(window).height() / 2
+      $(".CodeMirror-scroll").height height
+      $("#editor").height height
+      width = $(window).width() - preview_margin*2 - 15
+      # TODO: set width
+      $("#container").addClass("hsplit").height height
+    
+    hsplit_undo: ->  
+      height = $(window).height()
+      $(".CodeMirror-scroll").height height
+      $("#editor").height height
+      $("#container").removeClass("hsplit").height height
+      
+    
+    load: ->
+      console.log "loading from localStorage"
+      
+      @code = localStorage[@path]
+      this.close()
+      
+      this.render()
+    
+    save: ->  
+      @code = @codemirror.getValue()
+      console.log "saving: ", @code
+      localStorage[@path] = @code
+  
+    close: ->
+      this.hsplit_undo() 
+      $("#editor").hide()
+      
+    show: (path) ->
+      $.get "/#{path}", (file) =>
+        @code = file
+        @path = path
+        this.render()
+        
+    render: ->
+      $(".CodeMirror").remove()
+      $("#code").html @code
+      code_div = document.getElementById "code"
+      options = { mode: this.content_type(), tabMode: 'indent', lineNumbers: true, lineWrapping: true }
+      @codemirror = CodeMirror.fromTextArea code_div, options
+
+      $(".CodeMirror-scroll").height $(window).height()
+      $("#editor").show()
+      
+      theme = "neat"
+      this.load_theme theme
+      
+      @codemirror.refresh()
+      $("#code").focus()
+    
+    load_theme: (theme) ->
+      fivetastic.load_vendor_css "codemirror_themes/#{theme}"
+      @codemirror.setOption "theme", theme
+  
+    content_type: ->
+      type = _(@path.split(".")).last()
+      console.log type
+      switch type 
+        when "coffee" then "text/x-coffeescript"
+        when "haml" then "text/plain"
+        when "sass" then "text/css"
+        else console.log "ERROR: type '#{type}' not detected"
+          
+        
+
        
 g = window
 g.fivetastic = new FiveTastic
 
 unless g.jasmine
   g.fivetastic.start()
+  
+  # debug
+  # setTimeout -> 
+  #   $("#dev_controls a:first").trigger "click"
+  #   
+  #   setTimeout ->
+  #      $("#editor .screen_hsplit").trigger "click"
+  #   , 100
+  #      
+  # , 300
