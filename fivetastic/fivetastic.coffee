@@ -6,7 +6,8 @@ class FiveTastic
     # @page = null
     @body = $("body")
     @routes = null
-    @views_path = "/views" # "/haml"
+    @views_path = "views" # "/haml"
+    @loaded_sass = {}
     
   start: (body) ->  
     @body = body if body
@@ -52,7 +53,7 @@ class FiveTastic
         evt.preventDefault()
     this.attach_clicks()
     this.sass()
-    @body.trigger("page_loaded")
+    @body.trigger "page_loaded"
   
   render_all_sass: ->
     sasses = _(@sasses).sortBy (sass) -> sass.idx
@@ -66,22 +67,23 @@ class FiveTastic
   sass: (theme, async) ->  
     id = if theme then "#theme" else ""
     self = this
-    $("link[type='text/sass']#{id}").each (idx, script) ->
-      path = if theme then "/sass/theme_#{theme}.sass" else $(script).attr("href")
-      
-      idx = self.sasses.length + 1 if async
-      
-      tag_id = if theme 
-        " id='#{theme}'" 
-      else
-        ""
+    $("link[type='text/sass']#{id}").each (idx, script) =>
+      href = $(script).attr("href")
+      unless @loaded_sass[href]
+        @loaded_sass[href] = true
+        path = if theme then "/sass/theme_#{theme}.sass" else $(script).attr("href")
         
-      self.sasses.push { idx: idx, loaded: false, tag_id: tag_id }
-      $.get path, (data)  -> 
-        sass = self.render_sass data
-        # console.log theme
+        idx = self.sasses.length + 1 if async
       
-        self.got_sass idx, sass
+        tag_id = if theme 
+          " id='#{theme}'" 
+        else
+          ""
+        
+        self.sasses.push { idx: idx, loaded: false, tag_id: tag_id, path: path }
+        $.get path, (data)  -> 
+          sass = self.render_sass data
+          self.got_sass idx, sass
       
     
   render_sass: (sass) ->
@@ -130,8 +132,8 @@ class FiveTastic
     sass = _.detect(@sasses, (h) -> h.idx == idx )
     sass.css = css
     sass.loaded = true
-    all_loaded = _.all(@sasses, (h) -> h.loaded == true)
     # console.log @sasses
+    all_loaded = _.all(@sasses, (h) -> h.loaded == true)
     this.render_all_sass() if all_loaded
   
   got_haml: (name, haml_string) ->
@@ -146,7 +148,7 @@ class FiveTastic
   # haml
     
   load_page_js: (page) ->
-    $.get "#{@views_path}/#{page}.haml", (data) =>
+    $.get "/#{@views_path}/#{page}.haml", (data) =>
       this.render_js page, data
     
   load_page: (page, callback) ->
@@ -155,10 +157,18 @@ class FiveTastic
     
   load_haml: (name, callback) ->
     @hamls.push { name: name, loaded: false }
-    $.get "#{@views_path}/#{name}.haml", (data) =>
-      haml = this.got_haml name, data
+    path = "#{@views_path}/#{name}.haml"
+
+    if this.in_dev_mode() && stored = localStorage[path]
+      #load from localstorage
+      haml = this.got_haml name, stored
       callback(haml) if callback
-      haml
+      haml      
+    else
+      $.get path, (data) =>
+        haml = this.got_haml name, data
+        callback(haml) if callback
+        haml
       
   # routes
   
@@ -245,66 +255,70 @@ class FiveTastic
     </div>
     "
   
+  in_dev_mode: ->    
+    @dev_mode || false
+    
   dev_mode: ->
+    @dev_mode = true
     console.log "fivetastic is running in dev mode"
     
     $("head").append "<script src='/fivetastic/vendor/codemirror.js'></script>"
     
-    $("body").bind "page_loaded", =>
-      this.load_vendor_css "codemirror"
-      this.load_vendor_css "codemirror_themes/default"
-    
-      $("body").append this.editor_template()
-      
-      # console.log editor
-      
-      @body.bind "sass_loadeds", =>
-        $.get "/fivetastic/vendor/sass/codemirror.sass", (sass) =>
-          css = this.render_sass sass
-          this.append_style css
-          
-          $("#editor .close").bind "click", =>
-            this.editor.close()
-            
-          $("#editor .load").bind "click", =>
-            this.editor.load()
-            
-          $("#editor .screen_hsplit").bind "click", =>
-            this.editor.hsplit()
-            
-          $("#editor .screen_full").bind "click", =>
-            this.editor.hsplit_undo()
-            
-          $(window).bind "keydown", (evt) =>
-            S = 83
-            Y = 89
-            Z = 90
-            ESC = 27
-
-            if evt.keyCode == ESC
-              this.editor.close()
-              
-            meta_key = evt.ctrlKey
-            if navigator.userAgent.match /Macintosh/
-              meta_key = evt.metaKey
-          
-            if meta_key && evt.keyCode == S
-              this.editor.save()
-              evt.preventDefault() 
-              
-            if meta_key && evt.keyCode == Z
-              this.editor.codemirror.undo()
-              
-            cmd_shift_z = meta_key && evt.shiftKey && evt.keyCode == Z
-            cmd_y = meta_key && evt.keyCode == Y
-            if cmd_shift_z || cmd_y
-              this.editor.codemirror.redo()
-              evt.preventDefault() if cmd_y
-            
-      $("#dev_controls a").bind "click", (evt) =>
-        path = $(evt.target).data("file")
-        this.editor.show path
+    this.load_vendor_css "codemirror"
+    this.load_vendor_css "codemirror_themes/default"
   
+    $("body").append this.editor_template()
+    
+    
+    # @body.bind "sass_loadeds", =>
+    $.get "/fivetastic/vendor/sass/codemirror.sass", (sass) =>
+      css = this.render_sass sass
+      this.append_style css
+      
+      $("#editor .close").bind "click", =>
+        this.editor.close()
+        
+      $("#editor .load").bind "click", =>
+        this.editor.load()
+        
+      $("#editor .screen_hsplit").bind "click", =>
+        this.editor.hsplit()
+        
+      $("#editor .screen_full").bind "click", =>
+        this.editor.hsplit_undo()
+        
+      this.handle_shortcuts()
+          
+    $("#dev_controls a").bind "click", (evt) =>
+      path = $(evt.target).data("file")
+      this.editor.show path
+  
+  handle_shortcuts: ->
+    $(window).bind "keydown", (evt) =>
+      S = 83
+      Y = 89
+      Z = 90
+      ESC = 27
+
+      if evt.keyCode == ESC
+        this.editor.close()
+        
+      meta_key = evt.ctrlKey
+      if navigator.userAgent.match /Macintosh/
+        meta_key = evt.metaKey
+    
+      if meta_key && evt.keyCode == S
+        this.editor.save()
+        evt.preventDefault() 
+        
+      if meta_key && evt.keyCode == Z
+        this.editor.codemirror.undo()
+        
+      cmd_shift_z = meta_key && evt.shiftKey && evt.keyCode == Z
+      cmd_y = meta_key && evt.keyCode == Y
+      if cmd_shift_z || cmd_y
+        this.editor.codemirror.redo()
+        evt.preventDefault() if cmd_y
   
   editor: 
     
