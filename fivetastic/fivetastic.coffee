@@ -284,15 +284,19 @@ class FiveTastic
             if evt.keyCode == ESC
               this.editor.close()
               
-            if evt.metaKey && evt.keyCode == S
+            meta_key = evt.ctrlKey
+            if navigator.userAgent.match /Macintosh/
+              meta_key = evt.metaKey
+          
+            if meta_key && evt.keyCode == S
               this.editor.save()
               evt.preventDefault() 
               
-            if evt.metaKey && evt.keyCode == Z
+            if meta_key && evt.keyCode == Z
               this.editor.codemirror.undo()
               
-            cmd_shift_z = evt.metaKey && evt.shiftKey && evt.keyCode == Z
-            cmd_y = evt.metaKey && evt.keyCode == Y
+            cmd_shift_z = meta_key && evt.shiftKey && evt.keyCode == Z
+            cmd_y = meta_key && evt.keyCode == Y
             if cmd_shift_z || cmd_y
               this.editor.codemirror.redo()
               evt.preventDefault() if cmd_y
@@ -322,8 +326,7 @@ class FiveTastic
       
     
     load: ->
-      console.log "loading from localStorage"
-      
+      # console.log "loading from localStorage"
       @code = localStorage[@path]
       this.close()
       
@@ -331,7 +334,7 @@ class FiveTastic
     
     save: ->  
       @code = @codemirror.getValue()
-      console.log "saving: ", @code
+      # console.log "saving: ", @code
       localStorage[@path] = @code
   
     close: ->
@@ -366,7 +369,6 @@ class FiveTastic
   
     content_type: ->
       type = _(@path.split(".")).last()
-      console.log type
       switch type 
         when "coffee" then "text/x-coffeescript"
         when "haml" then "text/plain"
