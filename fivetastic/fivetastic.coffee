@@ -12,6 +12,9 @@ class FiveTastic
   start: (body) ->  
     @body = body if body
     
+    @hamls.push { name: "layout", loaded: false }
+    @hamls.push { name: "index", loaded: false }
+    
     this.load_page "layout"
     
     if this.index_path()
@@ -24,21 +27,18 @@ class FiveTastic
     
       
     this.theme_buttons()
-    # console.log "fivetastic started"
     
   # rendering
   
   render_js: (name, page) ->
-    # console.log "page: ", page
     html = this.haml page
-    # console.log "html: ", html
     $("#content").html html
     @body.trigger("page_js_loaded", [name])
     
   
   render: ->
+    console.log @layout
     page = this.haml @page
-    # console.log "page: ", @page
     html = this.haml(@layout, {yield: page})
     $("head").append $(html).find("#head").html()
     $("title").html $(html).find("#head #title").text()
@@ -69,7 +69,7 @@ class FiveTastic
     self = this
     $("link[type='text/sass']#{id}").each (idx, script) =>
       href = $(script).attr("href")
-      unless @loaded_sass[href]
+      if !@loaded_sass[href] || async
         @loaded_sass[href] = true
         path = if theme then "/sass/theme_#{theme}.sass" else $(script).attr("href")
         
@@ -117,7 +117,6 @@ class FiveTastic
         
         try 
           self.routes_get (routes) ->
-            # console.log "path: ", path
             page = self.page_from_path routes, path
             self.load_page_js page
             self.push_state path
@@ -132,7 +131,6 @@ class FiveTastic
     sass = _.detect(@sasses, (h) -> h.idx == idx )
     sass.css = css
     sass.loaded = true
-    # console.log @sasses
     all_loaded = _.all(@sasses, (h) -> h.loaded == true)
     this.render_all_sass() if all_loaded
   
@@ -141,10 +139,15 @@ class FiveTastic
     haml.loaded = true
     all_loaded = _.all(@hamls, (h) -> h.loaded == true)
     this.assign name, haml_string
-    # console.log "all_loaded: ", all_loaded
     this.render() if all_loaded
     haml_string
-      
+  
+  # settings
+  
+  settings: {
+    load_from_storage: true
+  }
+  
   # haml
     
   load_page_js: (page) ->
@@ -156,11 +159,9 @@ class FiveTastic
     this.load_haml page, callback
     
   load_haml: (name, callback) ->
-    @hamls.push { name: name, loaded: false }
     path = "#{@views_path}/#{name}.haml"
-
-    if this.in_dev_mode() && stored = localStorage[path]
-      #load from localstorage
+    stored = localStorage["#{name}.haml_content"]
+    if this.settings.load_from_storage && stored
       haml = this.got_haml name, stored
       callback(haml) if callback
       haml      
@@ -169,7 +170,11 @@ class FiveTastic
         haml = this.got_haml name, data
         callback(haml) if callback
         haml
-      
+  
+  rerender_haml: ->
+    this.render()
+    this.dev_mode()
+  
   # routes
   
   page_from_path: (routes, path) ->
@@ -254,12 +259,9 @@ class FiveTastic
       <textarea id='code'></textarea>
     </div>
     "
-  
-  in_dev_mode: ->    
-    @dev_mode || false
     
   dev_mode: ->
-    @dev_mode = true
+    @in_dev_mode = true
     console.log "fivetastic is running in dev mode"
     
     $("head").append "<script src='/fivetastic/vendor/codemirror.js'></script>"
@@ -269,32 +271,35 @@ class FiveTastic
   
     $("body").append this.editor_template()
     
-    
     # @body.bind "sass_loadeds", =>
     $.get "/fivetastic/vendor/sass/codemirror.sass", (sass) =>
       css = this.render_sass sass
       this.append_style css
       
-      $("#editor .close").bind "click", =>
-        this.editor.close()
-        
-      $("#editor .load").bind "click", =>
-        this.editor.load()
-        
-      $("#editor .screen_hsplit").bind "click", =>
-        this.editor.hsplit()
-        
-      $("#editor .screen_full").bind "click", =>
-        this.editor.hsplit_undo()
-        
+      # $("#editor div").off ".btns"
+      this.handle_buttons()
       this.handle_shortcuts()
           
-    $("#dev_controls a").bind "click", (evt) =>
+    $("#dev_controls a").on "click", (evt) =>
       path = $(evt.target).data("file")
       this.editor.show path
   
+  handle_buttons: ->
+    $("#editor .close").on          "click.btns", =>
+      this.editor.close()
+      
+    $("#editor .load").on           "click.btns", =>
+      this.editor.load()
+      
+    $("#editor .screen_hsplit").on  "click.btns", =>
+      this.editor.hsplit()
+      
+    $("#editor .screen_full").on    "click.btns", =>
+      this.editor.hsplit_undo()
+  
   handle_shortcuts: ->
-    $(window).bind "keydown", (evt) =>
+    $(window).off "keydown"
+    $(window).on "keydown", (evt) =>
       S = 83
       Y = 89
       Z = 90
@@ -339,27 +344,39 @@ class FiveTastic
       $("#container").removeClass("hsplit").height height
       
     
-    load: ->
-      # console.log "loading from localStorage"
-      @code = localStorage[@path]
+    load: ->  
+      @code = localStorage["#{@name}_content"]
+      @updated = localStorage["#{@name}_updated"]
       this.close()
       
       this.render()
     
     save: ->  
       @code = @codemirror.getValue()
-      # console.log "saving: ", @code
-      localStorage[@path] = @code
+      localStorage["#{@name}_content"] = @code
+      localStorage["#{@name}_updated"] = new Date().valueOf()
+      fivetastic.rerender_haml()
   
     close: ->
       this.hsplit_undo() 
       $("#editor").hide()
       
-    show: (path) ->
-      $.get "/#{path}", (file) =>
-        @code = file
-        @path = path
-        this.render()
+      
+    show: (path) ->  
+      @path = path
+      @name = _(@path.split("/")).last()
+      content = localStorage["#{@name}_content"]
+      if content
+        @code = content
+        fivetastic.layout = @code
+        fivetastic.render()
+      else
+        $.get "/#{path}", (file) =>
+          @code = file
+          fivetastic.layout = @code
+          fivetastic.render()
+          # TODO: continue here
+          fivetastic.show_dev_mode()
         
     render: ->
       $(".CodeMirror").remove()
@@ -399,12 +416,13 @@ g.fivetastic = new FiveTastic
 unless g.jasmine
   g.fivetastic.start()
   
+  # g.fivetastic.dev_mode()
   # debug
-  # setTimeout -> 
-  #   $("#dev_controls a:first").trigger "click"
-  #   
-  #   setTimeout ->
-  #      $("#editor .screen_hsplit").trigger "click"
-  #   , 100
-  #      
-  # , 300
+  setTimeout -> 
+    $("#dev_controls a:first").trigger "click"
+    
+    setTimeout ->
+       $("#editor .screen_hsplit").trigger "click"
+    , 100
+       
+  , 300
