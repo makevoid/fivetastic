@@ -277,6 +277,7 @@ class FiveTastic
           <!-- <div class='screen_vsplit'>vsplit</div> -->
           <div class='screen_full'>full</div>
           <div class='spacer'></div>
+          <div class='discard'>discard</div>
           <div class='load'>load</div>
         </nav>
         <div class='close'>x</div>
@@ -314,6 +315,9 @@ class FiveTastic
 
       $("#editor .load").on           "click.btns", =>
         this.load()
+        
+      $("#editor .discard").on        "click.btns", =>
+        this.discard()
 
       $("#editor .screen_hsplit").on  "click.btns", =>
         this.hsplit()
@@ -376,14 +380,16 @@ class FiveTastic
       @code = localStorage["#{@name}_content"]
       @updated = localStorage["#{@name}_updated"]
       this.close()
-      
       this.render()
     
+    discard: ->
+      localStorage.removeItem "#{@name}_content"
+      localStorage.removeItem "#{@name}_updated"
+      
     save: ->  
       @code = @codemirror.getValue()
       localStorage["#{@name}_content"] = @code
       localStorage["#{@name}_updated"] = new Date().valueOf()
-    
       this.handle_type()
       fivetastic.render()
 
