@@ -36,21 +36,25 @@ class FiveTastic
     @body.trigger("page_js_loaded", [name])
     
   
+  times: 0
+  
   render: ->
-    console.log @layout
+    # console.log @layout
     page = this.haml @page
     html = this.haml(@layout, {yield: page})
     $("head").append $(html).find("#head").html()
     $("title").html $(html).find("#head #title").text()
     
+    @body = $("#rendered") if this.times > 0
+    
     html = $(html).find("#body").html()
     @body.children().remove()
-    @body.append html
+    @body.append "<div id='rendered'>#{html}</div>"
+    
+    # this.editor.full_render() if this.times > 0
+    this.times += 1  
+    
     $("#loading").remove()
-    $("body").delegate "a", "click", (evt) ->
-      host = "http://#{window.location.host}/"
-      if this["href"].match host
-        evt.preventDefault()
     this.attach_clicks()
     this.sass()
     @body.trigger "page_loaded"
@@ -107,7 +111,14 @@ class FiveTastic
   
   # handlers
   
+  nullify_clicks: ->
+    $("body").delegate "a", "click", (evt) ->
+      host = "http://#{window.location.host}/"
+      if this["href"].match host
+        evt.preventDefault()
+  
   attach_clicks: ->
+    this.nullify_clicks()
     self = this
     $("body").delegate "a", "click", (evt) ->
     # $("a").live "click", (evt) ->
@@ -170,10 +181,6 @@ class FiveTastic
         haml = this.got_haml name, data
         callback(haml) if callback
         haml
-  
-  rerender_haml: ->
-    this.render()
-    this.dev_mode()
   
   # routes
   
@@ -238,27 +245,6 @@ class FiveTastic
     $("head").append "<link rel='stylesheet' href='/fivetastic/vendor/css/#{name}.css'>"
     
   
-  editor_template: ->
-    "
-    <nav id='dev_controls'> 
-      Edit:
-      <a data-file='views/layout.haml'>Layout</a>
-      <a data-file='views/index.haml'>Page</a>
-      <a data-file='sass/app.sass'>Style</a>
-      <a data-file='coffee/app.coffee'>Coffee</a>
-    </nav>
-    <div id='editor'>
-      <nav>        
-        <div class='screen_hsplit'>hsplit</div>
-        <!-- <div class='screen_vsplit'>vsplit</div> -->
-        <div class='screen_full'>full</div>
-        <div class='spacer'></div>
-        <div class='load'>load</div>
-      </nav>
-      <div class='close'>x</div>
-      <textarea id='code'></textarea>
-    </div>
-    "
     
   dev_mode: ->
     @in_dev_mode = true
@@ -269,63 +255,104 @@ class FiveTastic
     this.load_vendor_css "codemirror"
     this.load_vendor_css "codemirror_themes/default"
   
-    $("body").append this.editor_template()
-    
-    # @body.bind "sass_loadeds", =>
-    $.get "/fivetastic/vendor/sass/codemirror.sass", (sass) =>
-      css = this.render_sass sass
-      this.append_style css
-      
-      # $("#editor div").off ".btns"
-      this.handle_buttons()
-      this.handle_shortcuts()
-          
-    $("#dev_controls a").on "click", (evt) =>
-      path = $(evt.target).data("file")
-      this.editor.show path
-  
-  handle_buttons: ->
-    $("#editor .close").on          "click.btns", =>
-      this.editor.close()
-      
-    $("#editor .load").on           "click.btns", =>
-      this.editor.load()
-      
-    $("#editor .screen_hsplit").on  "click.btns", =>
-      this.editor.hsplit()
-      
-    $("#editor .screen_full").on    "click.btns", =>
-      this.editor.hsplit_undo()
-  
-  handle_shortcuts: ->
-    $(window).off "keydown"
-    $(window).on "keydown", (evt) =>
-      S = 83
-      Y = 89
-      Z = 90
-      ESC = 27
+    this.editor.full_render()
 
-      if evt.keyCode == ESC
-        this.editor.close()
-        
-      meta_key = evt.ctrlKey
-      if navigator.userAgent.match /Macintosh/
-        meta_key = evt.metaKey
-    
-      if meta_key && evt.keyCode == S
-        this.editor.save()
-        evt.preventDefault() 
-        
-      if meta_key && evt.keyCode == Z
-        this.editor.codemirror.undo()
-        
-      cmd_shift_z = meta_key && evt.shiftKey && evt.keyCode == Z
-      cmd_y = meta_key && evt.keyCode == Y
-      if cmd_shift_z || cmd_y
-        this.editor.codemirror.redo()
-        evt.preventDefault() if cmd_y
   
-  editor: 
+  editor:   
+    
+    is_hsplit: false
+    
+    editor_template: ->
+      "
+      <nav id='dev_controls'> 
+        Edit:
+        <a data-file='views/layout.haml'>Layout</a>
+        <a data-file='views/index.haml'>Page</a>
+        <a data-file='sass/app.sass'>Style</a>
+        <a data-file='coffee/app.coffee'>Coffee</a>
+      </nav>
+      <div id='editor'>
+        <nav>        
+          <div class='screen_hsplit'>hsplit</div>
+          <!-- <div class='screen_vsplit'>vsplit</div> -->
+          <div class='screen_full'>full</div>
+          <div class='spacer'></div>
+          <div class='load'>load</div>
+        </nav>
+        <div class='close'>x</div>
+        <textarea id='code'></textarea>
+      </div>
+      "
+    
+    render_editor: ->
+      $("body").append this.editor_template()
+    
+    codemirror_sass_loaded: false
+    
+    full_render: ->
+      this.render_editor()
+      
+      unless this.codemirror_sass_loaded
+        $.get "/fivetastic/vendor/sass/codemirror.sass", (sass) =>
+          css = fivetastic.render_sass sass
+          fivetastic.append_style css
+
+          # $("#editor div").off ".btns"
+          this.handle_buttons()
+          this.handle_shortcuts()
+          this.codemirror_sass_loaded = true
+      else
+        this.handle_buttons()
+        this.handle_shortcuts()
+      
+      this.handle_nav()
+    
+    
+    handle_buttons: ->
+      $("#editor .close").on          "click.btns", =>
+        this.close()
+
+      $("#editor .load").on           "click.btns", =>
+        this.load()
+
+      $("#editor .screen_hsplit").on  "click.btns", =>
+        this.hsplit()
+
+      $("#editor .screen_full").on    "click.btns", =>
+        this.hsplit_undo()
+
+    handle_shortcuts: ->
+      $(window).off "keydown"
+      $(window).on "keydown", (evt) =>
+        S = 83
+        Y = 89
+        Z = 90
+        ESC = 27
+
+        if evt.keyCode == ESC
+          this.close()
+
+        meta_key = evt.ctrlKey
+        if navigator.userAgent.match /Macintosh/
+          meta_key = evt.metaKey
+
+        if meta_key && evt.keyCode == S
+          this.save()
+          evt.preventDefault() 
+
+        if meta_key && evt.keyCode == Z
+          this.codemirror.undo()
+
+        cmd_shift_z = meta_key && evt.shiftKey && evt.keyCode == Z
+        cmd_y = meta_key && evt.keyCode == Y
+        if cmd_shift_z || cmd_y
+          this.codemirror.redo()
+          evt.preventDefault() if cmd_y
+    
+    handle_nav: ->
+      $("#dev_controls a").on "click", (evt) =>
+        path = $(evt.target).data("file")
+        this.show path
     
     hsplit: ->
       preview_margin = 10
@@ -336,13 +363,14 @@ class FiveTastic
       width = $(window).width() - preview_margin*2 - 15
       # TODO: set width
       $("#container").addClass("hsplit").height height
+      this.is_hsplit = true
     
     hsplit_undo: ->  
       height = $(window).height()
       $(".CodeMirror-scroll").height height
       $("#editor").height height
       $("#container").removeClass("hsplit").height height
-      
+      this.is_hsplit = false
     
     load: ->  
       @code = localStorage["#{@name}_content"]
@@ -355,29 +383,49 @@ class FiveTastic
       @code = @codemirror.getValue()
       localStorage["#{@name}_content"] = @code
       localStorage["#{@name}_updated"] = new Date().valueOf()
-      fivetastic.rerender_haml()
+    
+      this.handle_type()
+      fivetastic.render()
+
+      if this.is_hsplit
+        setTimeout =>
+          this.hsplit() 
+        100
   
     close: ->
       this.hsplit_undo() 
       $("#editor").hide()
       
       
+    handle_type: ->
+      type = this.path_type()
+      if @name == "layout.haml"
+        fivetastic.layout = @code
+      else if type == "haml"
+        fivetastic.page = @code
+      else if type == "sass" 
+        console.log "TODO: implement me!"
+      else if type == "coffee"
+        console.log "TODO: implement me!"        
+      
+    render_all: ->
+      this.handle_type()
+      fivetastic.render()
+      this.render()  
+    
     show: (path) ->  
       @path = path
       @name = _(@path.split("/")).last()
+
       content = localStorage["#{@name}_content"]
       if content
         @code = content
-        fivetastic.layout = @code
-        fivetastic.render()
+        this.render_all()
       else
         $.get "/#{path}", (file) =>
           @code = file
-          fivetastic.layout = @code
-          fivetastic.render()
-          # TODO: continue here
-          fivetastic.show_dev_mode()
-        
+          this.render_all()
+          
     render: ->
       $(".CodeMirror").remove()
       $("#code").html @code
@@ -398,14 +446,16 @@ class FiveTastic
       fivetastic.load_vendor_css "codemirror_themes/#{theme}"
       @codemirror.setOption "theme", theme
   
+    path_type: ->
+      _(@path.split(".")).last()
+  
     content_type: ->
-      type = _(@path.split(".")).last()
-      switch type 
+      switch this.path_type() 
         when "coffee" then "text/x-coffeescript"
         when "haml" then "text/x-coffeescript"
         # when "haml" then "text/haml" # TODO: haml mode for codemirror
         when "sass" then "text/css"
-        else console.log "ERROR: type '#{type}' not detected"
+        else console.log "ERROR: type '#{this.path_type()}' not detected"
           
         
 
@@ -418,11 +468,11 @@ unless g.jasmine
   
   # g.fivetastic.dev_mode()
   # debug
-  setTimeout -> 
-    $("#dev_controls a:first").trigger "click"
-    
-    setTimeout ->
-       $("#editor .screen_hsplit").trigger "click"
-    , 100
-       
-  , 300
+  # setTimeout -> 
+  #   $("#dev_controls a:first").trigger "click"
+  #   
+  #   setTimeout ->
+  #      $("#editor .screen_hsplit").trigger "click"
+  #   , 100
+  #      
+  # , 300
