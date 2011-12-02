@@ -13,16 +13,16 @@ class FiveTastic
     @body = body if body
     
     @hamls.push { name: "layout", loaded: false }
-    @hamls.push { name: "index", loaded: false }
-    
     this.load_page "layout"
     
     if this.index_path()
+      @hamls.push { name: "index", loaded: false }
       this.load_page "index"
     else
       this.routes_get (routes) =>
         path = window.location.pathname
         page = this.page_from_path routes, path
+        @hamls.push { name: page, loaded: false }
         this.load_page page
     
       
@@ -146,6 +146,7 @@ class FiveTastic
     this.render_all_sass() if all_loaded
   
   got_haml: (name, haml_string) ->
+    console.log @hamls, name
     haml = _.detect(@hamls, (h) -> h.name == name )
     haml.loaded = true
     all_loaded = _.all(@hamls, (h) -> h.loaded == true)
