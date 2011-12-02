@@ -18,7 +18,11 @@ TYPES = {
   md: "text/markdown",
   sass: "text/sass",
   coffee: "text/x-coffeescript",
-  ico: "image/x-icon"
+  ico: "image/x-icon", 
+  xml: "text/xml",
+  png: "image/png",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
 }
 
 PATHS = JSON.parse( File.read("#{PATH}/routes.json") ).keys
