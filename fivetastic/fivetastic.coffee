@@ -39,7 +39,6 @@ class FiveTastic
   times: 0
   
   render: ->
-    # console.log @layout
     page = this.haml @page
     html = this.haml(@layout, {yield: page})
     $("head").append $(html).find("#head").html()
@@ -146,7 +145,6 @@ class FiveTastic
     this.render_all_sass() if all_loaded
   
   got_haml: (name, haml_string) ->
-    console.log @hamls, name
     haml = _.detect(@hamls, (h) -> h.name == name )
     haml.loaded = true
     all_loaded = _.all(@hamls, (h) -> h.loaded == true)
