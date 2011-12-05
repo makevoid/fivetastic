@@ -5,7 +5,7 @@
 # guard
 
 guard 'livereload' do
-  watch(%r{haml/.+\.(haml)})
+  watch(%r{views/.+\.(haml)})
   watch(%r{sass/.+\.(sass)})
   watch(%r{coffee/.+\.(coffee)})
   watch(%r{routes\.json})
