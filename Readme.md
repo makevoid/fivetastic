@@ -140,6 +140,8 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 ### TODO:
 
+- handle 404s
+
 - specs
 - rewrite using better modularity
 
