@@ -30,11 +30,13 @@ host it on your usual web server (apache, nginx etc) by putting this in your .ht
 
 apache:
 
-    TODO: apache vhost
+    see .htaccess
 
 nginx:
 
-    TODO: apache vhost
+    if (!-e $request_filename) {
+      rewrite ^.+$ / break;
+    }
 
 
 ### Guide:

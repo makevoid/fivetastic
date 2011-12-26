@@ -25,7 +25,8 @@ class FiveTastic
         @hamls.push { name: page, loaded: false }
         this.load_page page
     
-      
+
+    this.manage_state()
     this.theme_buttons()
     
   # rendering
@@ -214,19 +215,19 @@ class FiveTastic
   
   push_state: (url) ->
     # TODO: fix state object
-    page = url  
+    page = url[1..-1]  
+    page = "index" if page == ""
     state = {url: url, page: page}
-    url = "/" if url == "index"
     if history.pushState
-      history.pushState(state, page, url)
+      title = page # TODO: set proper title, maybe just capitalize
+      history.pushState(state, title, url)
   
   manage_state: ->
-    window.onpopstate ->
+    window.onpopstate = (event) =>
       state = event.state
       if state && state.url
-        console.log "pop state: ", state
-        # get page
-        # -- load_page_js
+        # console.log "pop state: ", state
+        this.load_page_js state.page
         
   # themes
   
