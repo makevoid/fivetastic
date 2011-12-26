@@ -120,8 +120,8 @@ class FiveTastic
   attach_clicks: ->
     this.nullify_clicks()
     self = this
+    $("body").undelegate "a", "click"
     $("body").delegate "a", "click", (evt) ->
-    # $("a").live "click", (evt) ->
       host = "http://#{window.location.host}"
       if this["href"].match host
         path = this["href"].replace host, ''
@@ -220,6 +220,7 @@ class FiveTastic
     state = {url: url, page: page}
     if history.pushState
       title = page # TODO: set proper title, maybe just capitalize
+      # console.log "push state: ", state
       history.pushState(state, title, url)
   
   manage_state: ->
