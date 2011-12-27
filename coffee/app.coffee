@@ -1,6 +1,6 @@
 g = window
 $("body").bind "sass_loadeds", ->
-  # g.fivetastic.dev_mode() # comment this in production
+  g.fivetastic.dev_mode() # comment this in production
   $("body").unbind "page_loaded"
   
   
