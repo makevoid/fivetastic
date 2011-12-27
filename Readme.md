@@ -80,6 +80,12 @@ need support:
 - integrates editor to develop directly into the browser (CodeMirror editor, the files are saved into the browser's localStorage)
 - host it everywhere! (it's only html and js)
 
+### browsers supported:
+
+- Chrome
+- Safari 4+
+- FF 3.6+
+- IE 7+
 
 ### Easy hosting!
 
