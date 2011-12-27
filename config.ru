@@ -15,6 +15,7 @@ MIME_TYPES = {
   ".haml"     => "text/haml",
   ".coffee"   => "text/x-coffeescript",
   ".md"       => "text/markdown",
+  # ".js"       => "text/javascript; charset=UTF-8",
 }
 
 Rack::Mime::MIME_TYPES.merge! MIME_TYPES

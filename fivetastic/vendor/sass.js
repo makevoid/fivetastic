@@ -2,6 +2,8 @@ var exports = {}
 
 // Sass - Core - Copyright TJ Holowaychuk <tj@vision-media.ca> (MIT Licensed)
 
+// changed by makevoid to support IE8 trough underscore
+
 /**
  * Library version.
  */
@@ -277,10 +279,11 @@ function Selector(string, parent, type) {
 
 Selector.prototype.copy = function() {
   var copy = new Selector(this.string, this.parent, this.type)
-  copy.properties = this.properties.map(function(property) {
+  // changed by makevoid to support IE8 trough underscore
+  copy.properties = _(this.properties).map(function(property) {
     return property.copy()
   })
-  this.children.map(function(child) {
+  _(this.children).map(function(child) {
     copy.adopt(child.copy())
   })
   return copy

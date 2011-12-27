@@ -40,10 +40,16 @@ class FiveTastic
   times: 0
   
   render: ->
+    # debug 
+    # $("body").css "color", "#000"
     page = this.haml @page
     html = this.haml(@layout, {yield: page})
+    
+    major_ver = parseInt($.browser.version, 10)
     $("head").append $(html).find("#head").html()
-    $("title").html $(html).find("#head #title").text()
+    if !($.browser.msie && major_ver <= 8)
+      # console.log "not ie < 8"
+      $("title").html $(html).find("#head #title").text()
     
     @body = $("#rendered") if this.times > 0
     
@@ -249,7 +255,7 @@ class FiveTastic
     
   dev_mode: ->
     @in_dev_mode = true
-    console.log "fivetastic is running in dev mode"
+    # console.log "fivetastic is running in dev mode"
     
     $("head").append "<script src='/fivetastic/vendor/codemirror.js'></script>"
     

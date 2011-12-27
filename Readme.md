@@ -144,6 +144,8 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 - handle 404s
 
+- support pushstate in IE8 trough https://github.com/balupton/history.js
+
 - specs
 - rewrite using better modularity
 

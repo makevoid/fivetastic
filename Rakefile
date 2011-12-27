@@ -10,7 +10,9 @@ task :compile_js do
   Dir.glob("#{path}/fivetastic/vendor/*/*.js").each do |f|
     file.puts File.read(f)
   end
-  Dir.glob("#{path}/fivetastic/vendor/*.js").each do |f|
+  vendor = Dir.glob("#{path}/fivetastic/vendor/*.js")
+  # vendor = vendor - ["#{path}/fivetastic/vendor/codemirror.js"]
+  vendor.each do |f|
     file.puts File.read(f)
   end
   file.puts File.read("#{path}/fivetastic/init.js")
