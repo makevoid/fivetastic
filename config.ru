@@ -9,7 +9,7 @@ require "json" # load json gem?
 use Rack::Reloader, 0
 # use Rack::Static, :urls => ["*"]
 
-PATHS = JSON.parse( File.read("#{PATH}/routes.json") ).keys
+PATHS = JSON.parse( File.read("#{PATH}/routes.json") )
 
 MIME_TYPES = {
   ".haml"     => "text/haml",
@@ -29,17 +29,37 @@ class Loadr
   def self.load(file, type=:html)
     Proc.new do |env|
       path = env["REQUEST_PATH"]
-      path = "/index.html" if path == "/" || PATHS.include?(path)
-      file = "#{PATH}#{path}"
-      unless File.exists? file
-        [404, { "Content-Type" => get_type(type)}, ["File '#{path}' not found"]]
+      if path == "/" || PATHS.keys.include?(path)
+        file = "#{PATH}/index.html"
       else
-        body = File.read file
-        cont_type = File.extname(file)[1..-1].to_sym
-        content_type = get_type cont_type 
-        [200, { "Content-Type" => content_type }, [body]] 
+        page = PATHS[path]
+        file = "#{PATH}/views/#{page}"
+      
+        default_format = "haml"
+        file = "#{file}.#{default_format}" unless file =~ /\./
+      end
+      
+      if static_file? path
+        render_file "#{PATH}/#{path}"
+      else
+        unless File.exists? file
+          [404, { "Content-Type" => get_type(type)}, ["File '#{path}' not found - #{file} - #{PATHS}"]]
+        else
+          render_file file
+        end
       end
     end
+  end
+  
+  def self.static_file?(path)
+    path != "/" && File.exists?("#{PATH}/#{path}")
+  end
+  
+  def self.render_file(file)
+    body = File.read file
+    cont_type = File.extname(file)[1..-1].to_sym
+    content_type = get_type cont_type 
+    [200, { "Content-Type" => content_type }, [body]]
   end
 end
 
