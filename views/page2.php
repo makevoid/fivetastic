@@ -1,1 +1,1 @@
-<?php echo "loll" ?>
+php works? <?php echo "yes!" ?>

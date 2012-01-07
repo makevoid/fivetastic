@@ -202,7 +202,7 @@ class FiveTastic
       { name: page, format: format, full_name: "#{page}.#{format}" }
     
   load_view: (page, callback) ->
-    path = "#{@views_path}/#{page.full_name}"
+    path = "/#{@views_path}/#{page.full_name}"
     stored = localStorage["#{page.full_name}_content"]
     if this.settings.load_from_storage && stored
       haml = this.got_haml page, stored
