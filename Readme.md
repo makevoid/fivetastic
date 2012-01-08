@@ -61,7 +61,7 @@ basic routes support is done, see routes.json
 TODO: Routing system to be defined.... 
 
 need support:
-- complex routes
+- ../* (star) routes 
 - seo requests (ruby-rack/php/static fallback)
 
 
@@ -79,6 +79,7 @@ need support:
 - handles history changes (pushState/onpopstate)
 - integrates editor to develop directly into the browser (CodeMirror editor, the files are saved into the browser's localStorage)
 - host it everywhere! (it's only html and js)
+- supports PHP pages
 
 ### browsers supported:
 
@@ -207,5 +208,13 @@ and the gem:
 
 
 ### run specs: 
+
+rspec:
+
+    cd fivetastic
+    rspec spec/acceptance/fivetastic_spec.rb
+
+
+jasmine:
 
     time jasmine-headless-webkit -j spec/support/jasmine.yml

@@ -1,1 +1,1 @@
-php works? <?php echo "yes!" ?>
+php enabled? <?php echo "yes!" ?>

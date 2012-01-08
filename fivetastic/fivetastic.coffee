@@ -1,3 +1,5 @@
+localStorage = {} unless localStorage
+
 class FiveTastic
   constructor: ->
     @hamls = []
@@ -147,14 +149,19 @@ class FiveTastic
         
         try 
           self.routes_get (routes) ->
-            page = self.page_from_path routes, path
-            page = self.detect_format page
-            self.load_page_js page
-            self.push_state path
+            self.execute_click routes, path
         catch error
           console.log error
     
         evt.preventDefault()
+  
+  execute_click: (routes, path) ->
+    page = this.page_from_path routes, path
+    page = this.detect_format page
+    page.path = path
+    this.load_page_js page
+    this.push_state page
+  
   
   # events
   
@@ -217,7 +224,16 @@ class FiveTastic
   # routes
   
   page_from_path: (routes, path) ->
-    route = _.detect(_(routes).keys(), (route) -> route == path )
+    # console.log path, routes
+    matched = null
+    route = _.detect _(routes).keys(), (route) -> 
+      if route.match /\*/
+        route_exp = route.replace(/\*/g, '(.+)').replace(/\//g, '\\/')
+        # console.log route_exp, path
+        matched = path.match new RegExp(route_exp)
+      else
+        route == path
+    console.log "route:", route, matched
     page = routes[route]
     # page = this.detect_format page
     page
@@ -247,20 +263,21 @@ class FiveTastic
       
   # state
   
-  push_state: (url) ->
+  push_state: (page) ->
     # TODO: fix state object
-    page = url[1..-1]  
-    page = "index" if page == ""
-    state = {url: url, page: page}
+    # page = url[1..-1]  
+    # page = "index" if page == ""
+    # page = this.detect_format page
+    state = { page: page }
     if history.pushState
       title = page # TODO: set proper title, maybe just capitalize
       # console.log "push state: ", state
-      history.pushState(state, title, url)
+      history.pushState(state, title, page.path)
   
   manage_state: ->
     window.onpopstate = (event) =>
       state = event.state
-      if state && state.url
+      if state# && state.url
         # console.log "pop state: ", state
         this.load_page_js state.page
         

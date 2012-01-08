@@ -10,8 +10,11 @@ guard 'livereload' do
   watch(%r{coffee/.+\.(coffee)})
   watch(%r{routes\.json})
   watch(%r{index\.html})
-  watch(%r{fivetastic/spec/all\.html})
 end
 
+# guard 'rspec' do
+#   watch(%r{^fivetastic/spec/acceptance/.+_spec\.rb$}){ "fivetastic/spec" }
+#   watch('fivetastic/spec/spec_helper.rb'){ "fivetastic/spec" }
+# end
 
 # more infos on livereload here: https://github.com/mockko/livereload
