@@ -4,6 +4,7 @@ gem "rack"
 
 group :development, :test do
   gem "guard"
+  gem "guard-livereload"
   gem "guard-rspec"
   gem "growl"
 end
@@ -13,10 +14,7 @@ group :test do
   gem "rspec-mocks"
   gem "rspec-expectations"
   gem "capybara", :git => 'git://github.com/jnicklas/capybara.git'
+  gem "capybara-webkit"
   
   gem "syntax"
-end
-
-group :test_js do 
-  gem "capybara-webkit"
 end

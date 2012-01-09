@@ -224,19 +224,28 @@ class FiveTastic
   # routes
   
   page_from_path: (routes, path) ->
-    # console.log path, routes
-    matched = null
-    route = _.detect _(routes).keys(), (route) -> 
-      if route.match /\*/
-        route_exp = route.replace(/\*/g, '(.+)').replace(/\//g, '\\/')
-        # console.log route_exp, path
-        matched = path.match new RegExp(route_exp)
-      else
-        route == path
-    console.log "route:", route, matched
-    page = routes[route]
+    route = this.route_matches routes, path
+    page = route.value
     # page = this.detect_format page
     page
+    
+  route_matches: (routes, path) ->
+    route = null
+    for route, value of routes
+      if route.match /\*/
+        route_exp = route.replace(/\*/g, '(.+)').replace(/\//g, '\\/')
+        matches = path.match new RegExp(route_exp)
+        if matches
+          name = matches[0]
+          args = matches[1..-1]
+          route = { name: name, args: args, value: value }
+          break
+      else
+        if path == route
+          route = { name: path, args: [], value: value }
+          break
+        
+    route
     
   index_path: ->
     path = window.location.pathname 
