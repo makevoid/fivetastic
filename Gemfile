@@ -1,6 +1,8 @@
 source :rubygems
 
 gem "rack"
+# gem "rack-contrib"
+# gem "rack-cache"
 
 group :development, :test do
   gem "guard"

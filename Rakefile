@@ -11,7 +11,8 @@ task :compile_js do
     file.puts File.read(f)
   end
   vendor = Dir.glob("#{path}/fivetastic/vendor/*.js")
-  # vendor = vendor - ["#{path}/fivetastic/vendor/codemirror.js"]
+  # comment this to exclude codemirror
+  vendor = vendor - ["#{path}/fivetastic/vendor/codemirror.js"]
   vendor.each do |f|
     file.puts File.read(f)
   end

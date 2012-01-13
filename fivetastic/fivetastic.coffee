@@ -18,16 +18,16 @@ class FiveTastic
     
     if this.index_path()
       @hamls.push { name: "index.haml", loaded: false }
-      this.load_page "layout.haml"
-      this.load_page "index.haml"
+      this.load_page { value: "layout.haml" }
+      this.load_page { value: "index.haml"  }
     else
       this.routes_get (routes) =>
         path = window.location.pathname
         page = this.page_from_path routes, path
         page = this.detect_format page
         @hamls.push { name: page.full_name, loaded: false }
-        this.load_page "layout.haml"
-        this.load_page page.full_name
+        this.load_page { value: "layout.haml" }
+        this.load_page page
 
     this.manage_state()
     this.theme_buttons()
@@ -190,23 +190,28 @@ class FiveTastic
     
   load_page_js: (page) ->
     $.get "/#{@views_path}/#{page.full_name}", (data) =>
+      @current_page = page
       this.render_js page, data
     
   load_page: (page, callback) ->
     # TODO: implement other markups like markdown and mustache/handlebars
-    page = this.detect_format(page)
+    page = this.detect_format page
+    @current_page = page
     this.load_view page, callback
     
   
   default_format: "haml"  
   
   detect_format: (page) ->
-    if page.match /\./
-      split = page.split(/\./)
-      { name: split[0], format: split[1], full_name: page }
+    return page if page.full_name
+    value = page
+    value = page.value if page.value
+    if value.match /\./
+      split = value.split(/\./)
+      { name: split[0], format: split[1], full_name: value, args: page.args }
     else
       format = this.default_format
-      { name: page, format: format, full_name: "#{page}.#{format}" }
+      { name: value, format: format, full_name: "#{value}.#{format}", args: page.args }
     
   load_view: (page, callback) ->
     path = "/#{@views_path}/#{page.full_name}"
@@ -224,10 +229,7 @@ class FiveTastic
   # routes
   
   page_from_path: (routes, path) ->
-    route = this.route_matches routes, path
-    page = route.value
-    # page = this.detect_format page
-    page
+    this.route_matches routes, path
     
   route_matches: (routes, path) ->
     route = null
