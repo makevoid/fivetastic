@@ -56,7 +56,6 @@ class FiveTastic
     else
       @page.html
     # TODO: insert other rendering format here (like markdown)
-    
     html = this.haml @layout.html, {yield: page}
     
     major_ver = parseInt($.browser.version, 10)
@@ -117,9 +116,10 @@ class FiveTastic
     # TODO: throw an exception to be catched
     #
     # try
-    # console.log "compiling haml..."
-    haml.compileStringToJs(html)(vars)
-    # console.log "finished"
+    # haml.compileStringToJs(html)(vars)
+    # haml.compileHaml({ source: html, generator: "coffeescript" })(vars)
+    haml.compileHaml({ source: html })(vars)
+    # haml.compileCoffeeHamlFromString(html)(vars)
     # catch error
     #       console.log error
   

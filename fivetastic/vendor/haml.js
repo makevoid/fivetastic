@@ -1,795 +1,345 @@
-/*jslint plusplus: false, evil: true, regexp: false */
 
-var root = this;
+/*
+  clientside HAML compiler for Javascript and Coffeescript (Version 4)
 
-root.haml = {
+  Copyright 2011-12, Ronald Holshausen (https://github.com/uglyog)
+  Released under the MIT License (http://www.opensource.org/licenses/MIT)
+*/
 
-  compileHaml: function (templateId) {
-    if (haml.cache && haml.cache[templateId]) {
-      return haml.cache[templateId];
-    }
+(function() {
+  var Buffer, CodeGenerator, CoffeeCodeGenerator, HamlRuntime, JsCodeGenerator, Tokeniser, filters, root,
+    __hasProp = Object.prototype.hasOwnProperty,
+    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor; child.__super__ = parent.prototype; return child; };
 
-    var result = this.compileHamlToJs(new haml.Tokeniser({templateId: templateId}));
-    var fn = null;
+  root = this;
 
-    try {
-      fn = new Function('context', result);
-    } catch (e) {
-      throw "Incorrect embedded JS code has resulted in an invalid Haml function - " + e + "\nGenerated Function:\n" +
-        result;
-    }
+  /*
+    Haml runtime functions. These are used both by the compiler and the generated template functions
+  */
 
-    if (!haml.cache) {
-      haml.cache = {};
-    }
-    haml.cache[templateId] = fn;
-
-    return fn;
-  },
-  
-  compileStringToJs: function (string) {
-    var result = this.compileHamlToJs(new haml.Tokeniser({template: string}));
-    var fn = null;
-
-    try {
-      fn = new Function('context', result);
-    } catch (e) {
-      throw "Incorrect embedded JS code has resulted in an invalid Haml function - " + e + "\nGenerated Function:\n" +
-        result;
-    }
-    return fn
-  },
-
-  compileHamlToJs: function (tokeniser)
-  {
-    var outputBuffer = new haml.Buffer();
-    var elementStack = [];
-
-    var result = '  var html = [];\n';
-    result += '  var hashFunction = null, hashObject = null, objRef = null, objRefFn = null;\n  with (context) {\n';
-
-    // HAML -> WS* (
-    //          TEMPLATELINE
-    //          | IGNOREDLINE
-    //          | EMBEDDEDJS
-    //          | JSCODE
-    //          | COMMENTLINE
-    //         )* EOF
-    tokeniser.getNextToken();
-    while (!tokeniser.token.eof)
-    {
-      if (!tokeniser.token.eol)
-      {
-        var indent = haml.whitespace(tokeniser);
-        if (tokeniser.token.exclamation)
-        {
-          haml.ignoredLine(tokeniser, indent, elementStack, outputBuffer);
-        } else if (tokeniser.token.equal || tokeniser.token.escapeHtml || tokeniser.token.unescapeHtml ||
-          tokeniser.token.tilde) {
-          haml.embeddedJs(tokeniser, indent, elementStack, outputBuffer, {innerWhitespace: true});
-        } else if (tokeniser.token.minus) {
-          haml.jsLine(tokeniser, indent, elementStack, outputBuffer);
-        } else if (tokeniser.token.comment || tokeniser.token.slash) {
-          haml.commentLine(tokeniser, indent, elementStack, outputBuffer);
-        } else if (tokeniser.token.amp) {
-          haml.escapedLine(tokeniser, indent, elementStack, outputBuffer);
-        } else {
-          haml.templateLine(tokeniser, elementStack, outputBuffer, indent);
+  HamlRuntime = {
+    /*
+        Taken from underscore.string.js escapeHTML, and replace the apos entity with character 39 so that it renders
+        correctly in IE7
+    */
+    escapeHTML: function(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, "&#39;");
+    },
+    /*
+        Provides the implementation to preserve the whitespace as per the HAML reference
+    */
+    perserveWhitespace: function(str) {
+      var i, out, re, result;
+      re = /<[a-zA-Z]+>[^<]*<\/[a-zA-Z]+>/g;
+      out = '';
+      i = 0;
+      result = re.exec(str);
+      if (result) {
+        while (result) {
+          out += str.substring(i, result.index);
+          out += result[0].replace(/\n/g, '&#x000A;');
+          i = result.index + result[0].length;
+          result = re.exec(str);
         }
+        out += str.substring(i);
       } else {
-        tokeniser.getNextToken();
+        out = str;
       }
-    }
-
-    haml.closeElements(0, elementStack, outputBuffer, tokeniser);
-    outputBuffer.flush();
-    result += outputBuffer.output();
-
-    result += '  }\n  return html.join("");\n';
-    return result;
-  },
-
-  commentLine: function (tokeniser, indent, elementStack, outputBuffer) {
-    if (tokeniser.token.comment) {
-      tokeniser.skipToEOLorEOF();
-    } else if (tokeniser.token.slash) {
-      haml.closeElements(indent, elementStack, outputBuffer, tokeniser);
-      outputBuffer.append(haml.indentText(indent));
-      outputBuffer.append("<!--");
-      var contents = tokeniser.skipToEOLorEOF();
-      if (contents && contents.length > 0) {
-        outputBuffer.append(contents);
+      return out;
+    },
+    /*
+        Generates a error message including the current line in the source where the error occurred
+    */
+    templateError: function(lineNumber, characterNumber, currentLine, error) {
+      var i, message;
+      message = error + " at line " + lineNumber + " and character " + characterNumber + ":\n" + currentLine + '\n';
+      i = 0;
+      while (i < characterNumber - 1) {
+        message += '-';
+        i++;
       }
-
-      if (contents && _(contents).startsWith('[') && contents.match(/\]\s*$/)) {
-        elementStack[indent] = { htmlConditionalComment: true };
-        outputBuffer.append(">");
-      } else {
-        elementStack[indent] = { htmlComment: true };
+      message += '^';
+      return message;
+    },
+    /*
+        Generates the attributes for the element by combining all the various sources together
+    */
+    generateElementAttributes: function(context, id, classes, objRefFn, attrList, attrFunction, lineNumber, characterNumber, currentLine) {
+      var attr, attributes, className, dataAttr, dataAttributes, hash, html, object, objectId;
+      attributes = {};
+      attributes = this.combineAttributes(attributes, 'id', id);
+      if (classes.length > 0 && classes[0].length > 0) {
+        attributes = this.combineAttributes(attributes, 'class', classes);
       }
-
-      if (haml.tagHasContents(indent, tokeniser)) {
-        outputBuffer.append("\\n");
-      }
-    }
-  },
-
-  escapedLine: function (tokeniser, indent, elementStack, outputBuffer) {
-    if (tokeniser.token.amp) {
-      haml.closeElements(indent, elementStack, outputBuffer, tokeniser);
-      outputBuffer.append(haml.indentText(indent));
-      var contents = tokeniser.skipToEOLorEOF();
-      if (contents && contents.length > 0) {
-        outputBuffer.append(_(contents).escapeHTML());
-      }
-      outputBuffer.append("\\n");
-    }
-  },
-
-
-  ignoredLine: function (tokeniser, indent, elementStack, outputBuffer) {
-    if (tokeniser.token.exclamation) {
-      tokeniser.getNextToken();
-      if (tokeniser.token.ws) {
-        indent += haml.whitespace(tokeniser);
-      }
-      tokeniser.pushBackToken();
-      haml.closeElements(indent, elementStack, outputBuffer, tokeniser);
-      var contents = tokeniser.skipToEOLorEOF();
-      outputBuffer.append(haml.indentText(indent) + contents + '\\n');
-    }
-  },
-
-  embeddedJs: function (tokeniser, indent, elementStack, outputBuffer, tagOptions) {
-    if (elementStack) {
-      haml.closeElements(indent, elementStack, outputBuffer, tokeniser);
-    }
-    if (tokeniser.token.equal || tokeniser.token.escapeHtml || tokeniser.token.unescapeHtml || tokeniser.token.tilde) {
-      var escapeHtml = tokeniser.token.escapeHtml || tokeniser.token.equal;
-      var perserveWhitespace = tokeniser.token.tilde;
-      var currentParsePoint = tokeniser.currentParsePoint();
-      var expression = tokeniser.skipToEOLorEOF();
-      var indentText = haml.indentText(indent);
-      if (!tagOptions || tagOptions.innerWhitespace) {
-        outputBuffer.append(indentText);
-      }
-      outputBuffer.flush();
-
-      outputBuffer.appendToOutputBuffer(indentText + 'try {\n');
-      outputBuffer.appendToOutputBuffer(indentText + '    var value = eval("' +
-        expression.replace(/"/g, '\\"').replace(/\\n/g, '\\\\n') + '");\n');
-      outputBuffer.appendToOutputBuffer(indentText + '    value = value === null ? "" : value;');
-      if (escapeHtml) {
-        outputBuffer.appendToOutputBuffer(indentText + '    html.push(_(String(value)).escapeHTML());\n');
-      } else if (perserveWhitespace) {
-        outputBuffer.appendToOutputBuffer(indentText + '    html.push(haml.perserveWhitespace(String(value)));\n');
-      } else {
-        outputBuffer.appendToOutputBuffer(indentText + '    html.push(String(value));\n');
-      }
-      outputBuffer.appendToOutputBuffer(indentText + '} catch (e) {\n');
-      outputBuffer.appendToOutputBuffer(indentText + '  throw new Error(haml.templateError(' +
-              currentParsePoint.lineNumber + ', ' + currentParsePoint.characterNumber + ', "' +
-              haml.escapeJs(currentParsePoint.currentLine) + '",\n');
-      outputBuffer.appendToOutputBuffer(indentText + '    "Error evaluating expression - " + e));\n');
-      outputBuffer.appendToOutputBuffer(indentText + '}\n');
-
-      if (!tagOptions || tagOptions.innerWhitespace) {
-        outputBuffer.append("\\n");
-      }
-    }
-  },
-
-  jsLine: function (tokeniser, indent, elementStack, outputBuffer) {
-    if (tokeniser.token.minus) {
-      haml.closeElements(indent, elementStack, outputBuffer, tokeniser);
-      outputBuffer.flush();
-      outputBuffer.appendToOutputBuffer(haml.indentText(indent));
-      var line = tokeniser.skipToEOLorEOF();
-      outputBuffer.appendToOutputBuffer(line);
-      outputBuffer.appendToOutputBuffer('\n');
-
-      if (line.match(/function\s\((,?\s*\w+)*\)\s*\{\s*$/)) {
-        elementStack[indent] = { fnBlock: true };
-      } else if (line.match(/\{\s*$/)) {
-        elementStack[indent] = { block: true };
-      }
-    }
-  },
-
-  // TEMPLATELINE -> ([ELEMENT][IDSELECTOR][CLASSSELECTORS][ATTRIBUTES] [SLASH|CONTENTS])|(!CONTENTS) (EOL|EOF)
-  templateLine: function (tokeniser, elementStack, outputBuffer, indent) {
-    if (!tokeniser.token.eol) {
-      haml.closeElements(indent, elementStack, outputBuffer, tokeniser);
-    }
-
-    var ident = haml.element(tokeniser);
-    var id = haml.idSelector(tokeniser);
-    var classes = haml.classSelector(tokeniser);
-    var objectRef = haml.objectReference(tokeniser);
-    var attrList = haml.attributeList(tokeniser);
-
-    var currentParsePoint = tokeniser.currentParsePoint();
-    var attributesHash = haml.attributeHash(tokeniser);
-
-    var tagOptions = {
-      selfClosingTag: false,
-      innerWhitespace: true,
-      outerWhitespace: true
-    };
-    if (tokeniser.token.slash) {
-      tagOptions.selfClosingTag = true;
-      tokeniser.getNextToken();
-    }
-    if (tokeniser.token.gt && haml.lineHasElement(ident, id, classes)) {
-      tagOptions.outerWhitespace = false;
-      tokeniser.getNextToken();
-    }
-    if (tokeniser.token.lt && haml.lineHasElement(ident, id, classes)) {
-      tagOptions.innerWhitespace = false;
-      tokeniser.getNextToken();
-    }
-
-    if (haml.lineHasElement(ident, id, classes)) {
-      if (!tagOptions.selfClosingTag) {
-        tagOptions.selfClosingTag = haml.isSelfClosingTag(ident) && !haml.tagHasContents(indent, tokeniser);
-      }
-      haml.openElement(currentParsePoint, indent, ident, id, classes, objectRef, attrList, attributesHash, elementStack,
-        outputBuffer, tagOptions);
-    } else if (!haml.isEolOrEof(tokeniser) && !tokeniser.token.ws) {
-      tokeniser.pushBackToken();
-    }
-
-    var contents = haml.elementContents(tokeniser, indent + 1, outputBuffer, tagOptions);
-    haml.eolOrEof(tokeniser);
-
-    if (tagOptions.selfClosingTag && contents.length > 0) {
-      throw haml.templateError(currentParsePoint.lineNumber, currentParsePoint.characterNumber,
-              currentParsePoint.currentLine, "A self-closing tag can not have any contents");
-    }
-    else if (contents.length > 0) {
-      if (contents.match(/^\\%/)) {
-        contents = contents.substring(1);
-      }
-      if (tagOptions.innerWhitespace && haml.lineHasElement(ident, id, classes) ||
-        (!haml.lineHasElement(ident, id, classes) && haml.parentInnerWhitespace(elementStack, indent))) {
-        var i = indent;
-        if (ident.length > 0) {
-          i += 1;
-        }
-        outputBuffer.append(haml.indentText(i) + contents + '\\n');
-      } else {
-        outputBuffer.append(_(contents).trim() + '\\n');
-      }
-    } else if (!haml.lineHasElement(ident, id, classes) && tagOptions.innerWhitespace) {
-      outputBuffer.append(haml.indentText(indent) + '\\n');
-    }
-  },
-
-  elementContents: function (tokeniser, indent, outputBuffer, tagOptions) {
-    var contents = '';
-
-    if (!tokeniser.token.eof) {
-      if (tokeniser.token.ws) {
-        tokeniser.getNextToken();
-      }
-
-      if (tokeniser.token.exclamation) {
-        contents = tokeniser.skipToEOLorEOF();
-      } else if (tokeniser.token.equal || tokeniser.token.escapeHtml || tokeniser.token.unescapeHtml) {
-        haml.embeddedJs(tokeniser, indent, null, outputBuffer, tagOptions);
-      } else if (!tokeniser.token.eol) {
-        tokeniser.pushBackToken();
-        contents = tokeniser.skipToEOLorEOF();
-      }
-    }
-
-    return contents;
-  },
-
-  attributeHash: function (tokeniser) {
-    var attr = '';
-    if (tokeniser.token.attributeHash) {
-      attr = tokeniser.token.tokenString;
-      tokeniser.getNextToken();
-    }
-    return attr;
-  },
-
-  objectReference: function (tokeniser) {
-    var attr = '';
-    if (tokeniser.token.objectReference) {
-      attr = tokeniser.token.tokenString;
-      tokeniser.getNextToken();
-    }
-    return attr;
-  },
-
-  // ATTRIBUTES -> ( ATTRIBUTE* )
-  attributeList: function (tokeniser) {
-    var attrList = {};
-    if (tokeniser.token.openBracket) {
-      tokeniser.getNextToken();
-      while (!tokeniser.token.closeBracket) {
-        var attr = haml.attribute(tokeniser);
-        if (attr) {
-          attrList[attr.name] = attr.value;
-        } else {
-          tokeniser.getNextToken();
-        }
-        if (tokeniser.token.ws || tokeniser.token.eol) {
-          tokeniser.getNextToken();
-        } else if (!tokeniser.token.closeBracket && !tokeniser.token.identifier) {
-          throw tokeniser.parseError("Expecting either an attribute name to continue the attibutes or a closing " +
-            "bracket to end");
+      if (attrList) {
+        for (attr in attrList) {
+          if (!__hasProp.call(attrList, attr)) continue;
+          attributes = this.combineAttributes(attributes, attr, attrList[attr]);
         }
       }
-      tokeniser.getNextToken();
-    }
-    return attrList;
-  },
-
-  // ATTRIBUTE -> IDENTIFIER WS* = WS* STRING
-  attribute: function (tokeniser) {
-    var attr = null;
-
-    if (tokeniser.token.identifier) {
-      var name = tokeniser.token.tokenString;
-      tokeniser.getNextToken();
-      haml.whitespace(tokeniser);
-      if (!tokeniser.token.equal) {
-        throw tokeniser.parseError("Expected '=' after attribute name");
-      }
-      tokeniser.getNextToken();
-      haml.whitespace(tokeniser);
-      if (!tokeniser.token.string && !tokeniser.token.identifier) {
-        throw tokeniser.parseError("Expected a quoted string or an identifier for the attribute value");
-      }
-      attr = {name: name, value: tokeniser.token.tokenString};
-      tokeniser.getNextToken();
-    }
-
-    return attr;
-  },
-
-  closeElement: function (indent, elementStack, outputBuffer, tokeniser) {
-    if (elementStack[indent]) {
-      if (elementStack[indent].htmlComment) {
-        outputBuffer.append(haml.indentText(indent) + '-->\\n');
-      } else if (elementStack[indent].htmlConditionalComment) {
-        outputBuffer.append(haml.indentText(indent) + '<![endif]-->\\n');
-      } else if (elementStack[indent].block) {
-        if (!tokeniser.token.minus || !tokeniser.matchToken(/\s*\}/g)) {
-          outputBuffer.flush();
-          outputBuffer.appendToOutputBuffer(haml.indentText(indent) + '}\n');
-        }
-      } else if (elementStack[indent].fnBlock) {
-        if (!tokeniser.token.minus || !tokeniser.matchToken(/\s*\}/g)) {
-          outputBuffer.flush();
-          outputBuffer.appendToOutputBuffer(haml.indentText(indent) + '});\n');
-        }
-      } else {
-        var innerWhitespace = !elementStack[indent].tagOptions || elementStack[indent].tagOptions.innerWhitespace;
-        if (innerWhitespace) {
-          outputBuffer.append(haml.indentText(indent));
-        } else {
-          outputBuffer.trimWhitespace();
-        }
-        outputBuffer.append('</' + elementStack[indent].tag + '>');
-        var outerWhitespace = !elementStack[indent].tagOptions || elementStack[indent].tagOptions.outerWhitespace;
-        if (haml.parentInnerWhitespace(elementStack, indent) && outerWhitespace) {
-          outputBuffer.append('\\n');
-        }
-      }
-      elementStack[indent] = null;
-    }
-  },
-
-  closeElements: function (indent, elementStack, outputBuffer, tokeniser) {
-    for (var i = elementStack.length - 1; i >= indent; (i--)) {
-      haml.closeElement(i, elementStack, outputBuffer, tokeniser);
-    }
-  },
-
-  openElement: function (currentParsePoint,
-                         indent,
-                         ident,
-                         id,
-                         classes,
-                         objectRef,
-                         attributeList,
-                         attributeHash,
-                         elementStack,
-                         outputBuffer,
-                         tagOptions) {
-    var element = ident;
-    if (element.length === 0) {
-      element = 'div';
-    }
-
-    var parentInnerWhitespace = haml.parentInnerWhitespace(elementStack, indent);
-    var tagOuterWhitespace = !tagOptions || tagOptions.outerWhitespace;
-    if (!tagOuterWhitespace) {
-      outputBuffer.trimWhitespace();
-    }
-    if (indent > 0 && parentInnerWhitespace && tagOuterWhitespace) {
-      outputBuffer.append(haml.indentText(indent));
-    }
-    outputBuffer.append('<' + element);
-    if (attributeHash.length > 0 || objectRef.length > 0) {
-      outputBuffer.flush();
-      if (attributeHash.length > 0) {
-        attributeHash = this.replaceReservedWordsInHash(attributeHash);
-        outputBuffer.appendToOutputBuffer('    hashFunction = function () { return eval("hashObject = ' +
-          attributeHash.replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"); };\n');
-      }
-      if (objectRef.length > 0) {
-        outputBuffer.appendToOutputBuffer('    objRefFn = function () { return eval("objRef = ' +
-          objectRef.replace(/"/g, '\\"') + '"); };\n');
-      }
-
-      outputBuffer.appendToOutputBuffer('    html.push(haml.generateElementAttributes(context, "' +
-              id + '", ["' +
-              classes.join('","') + '"], objRefFn, ' +
-              JSON.stringify(attributeList) + ', hashFunction, ' +
-              currentParsePoint.lineNumber + ', ' + currentParsePoint.characterNumber + ', "' +
-              haml.escapeJs(currentParsePoint.currentLine) + '"));\n');
-    } else {
-      outputBuffer.append(haml.generateElementAttributes(null, id, classes, null, attributeList, null,
-              currentParsePoint.lineNumber, currentParsePoint.characterNumber, currentParsePoint.currentLine));
-    }
-    if (tagOptions.selfClosingTag) {
-      outputBuffer.append("/>");
-      if (tagOptions.outerWhitespace) {
-        outputBuffer.append("\\n");
-      }
-    } else {
-      outputBuffer.append(">");
-      elementStack[indent] = { tag: element, tagOptions: tagOptions };
-      if (tagOptions.innerWhitespace) {
-        outputBuffer.append("\\n");
-      }
-    }
-  },
-
-  replaceReservedWordsInHash: function (hash) {
-    var resultHash;
-
-    resultHash = hash;
-    _(['class', 'for']).each(function (reservedWord) {
-      resultHash = resultHash.replace(reservedWord + ':', '"' + reservedWord + '":');
-    });
-
-    return resultHash;
-  },
-
-  escapeJs: function (jsStr) {
-    return jsStr.replace(/"/g, '\\"');
-  },
-
-  combineAttributes: function (attributes, attrName, attrValue) {
-    if (haml.hasValue(attrValue)) {
-      if (attrName === 'id' && attrValue.toString().length > 0) {
-        if (attributes && attributes.id instanceof Array) {
-          attributes.id.unshift(attrValue);
-        } else if (attributes && attributes.id) {
-          attributes.id = [attributes.id, attrValue];
-        } else if (attributes) {
-          attributes.id = attrValue;
-        } else {
-          attributes = {id: attrValue};
-        }
-      }
-      else if (attrName === 'for' && attrValue.toString().length > 0) {
-        if (attributes && attributes['for'] instanceof Array) {
-          attributes['for'].unshift(attrValue);
-        } else if (attributes && attributes['for']) {
-          attributes['for'] = [attributes['for'], attrValue];
-        } else if (attributes) {
-          attributes['for'] = attrValue;
-        } else {
-          attributes = {'for': attrValue};
-        }
-      } else if (attrName === 'class') {
-        var classes = [];
-        if (attrValue instanceof Array) {
-          classes = classes.concat(attrValue);
-        } else {
-          classes.push(attrValue);
-        }
-        if (attributes && attributes['class']) {
-          attributes['class'] = attributes['class'].concat(classes);
-        } else if (attributes) {
-          attributes['class'] = classes;
-        } else {
-          attributes = {'class': classes};
-        }
-      } else if (attrName !== 'id') {
-        if (!attributes) {
-          attributes = {};
-        }
-        attributes[attrName] = attrValue;
-      }
-    }
-    return attributes;
-  },
-
-  isSelfClosingTag: function (tag) {
-    return _(['meta', 'img', 'link', 'script', 'br', 'hr']).contains(tag);
-  },
-
-  tagHasContents: function (indent, tokeniser) {
-    if (!haml.isEolOrEof(tokeniser)) {
-      return true;
-    } else {
-      var nextToken = tokeniser.lookAhead(1);
-      return nextToken.ws && nextToken.tokenString.length / 2 > indent;
-    }
-  },
-
-  parentInnerWhitespace: function (elementStack, indent)
-  {
-    return indent === 0 || (!elementStack[indent - 1] || !elementStack[indent - 1].tagOptions ||
-      elementStack[indent - 1].tagOptions.innerWhitespace);
-  },
-
-  lineHasElement: function (ident, id, classes)
-  {
-    return ident.length > 0 || id.length > 0 || classes.length > 0;
-  },
-
-  generateElementAttributes: function (context,
-                                       id,
-                                       classes,
-                                       objRefFn,
-                                       attrList,
-                                       attrFunction,
-                                       lineNumber,
-                                       characterNumber,
-                                       currentLine) {
-    var attributes = {};
-
-    attributes = haml.combineAttributes(attributes, 'id', id);
-    if (classes.length > 0 && classes[0].length > 0) {
-      attributes = haml.combineAttributes(attributes, 'class', classes);
-    }
-
-    var attr;
-    if (attrList) {
-      for (attr in attrList) {
-        if (attrList.hasOwnProperty(attr)) {
-          attributes = haml.combineAttributes(attributes, attr, attrList[attr]);
-        }
-      }
-    }
-
-    if (objRefFn) {
-      try {
-        var object = objRefFn.call(this, context);
-        if (object) {
-          var objectId = null;
-          if (object.id) {
-            objectId = object.id;
-          } else if (object.get) {
-            objectId = object.get('id');
+      if (objRefFn) {
+        try {
+          object = objRefFn.call(context, context);
+          if (object) {
+            objectId = null;
+            if (object.id) {
+              objectId = object.id;
+            } else if (object.get) {
+              objectId = object.get('id');
+            }
+            attributes = this.combineAttributes(attributes, 'id', objectId);
+            className = null;
+            if (object['class']) {
+              className = object['class'];
+            } else if (object.get) {
+              className = object.get('class');
+            }
+            attributes = this.combineAttributes(attributes, 'class', className);
           }
-          attributes = haml.combineAttributes(attributes, 'id', objectId);
-          var className = null;
-          if (object['class']) {
-            className = object['class'];
-          } else if (object.get) {
-            className = object.get('class');
-          }
-          attributes = haml.combineAttributes(attributes, 'class', className);
+        } catch (e) {
+          throw haml.HamlRuntime.templateError(lineNumber, characterNumber, currentLine, "Error evaluating object reference - " + e);
         }
-      } catch (e) {
-        throw haml.templateError(lineNumber, characterNumber, currentLine, "Error evaluating object reference - " + e);
       }
-    }
-
-    if (attrFunction) {
-      try {
-        var hash = attrFunction.call(this, context);
-        if (hash) {
-          for (attr in hash) {
-            if (hash.hasOwnProperty(attr)) {
+      if (attrFunction) {
+        try {
+          hash = attrFunction.call(context, context);
+          if (hash) {
+            for (attr in hash) {
+              if (!__hasProp.call(hash, attr)) continue;
               if (attr === 'data') {
-                var dataAttributes = hash[attr];
-                for (var dataAttr in dataAttributes) {
-                  if (dataAttributes.hasOwnProperty(dataAttr)) {
-                    attributes = haml.combineAttributes(attributes, 'data-' + dataAttr, dataAttributes[dataAttr]);
-                  }
+                dataAttributes = hash[attr];
+                for (dataAttr in dataAttributes) {
+                  if (!__hasProp.call(dataAttributes, dataAttr)) continue;
+                  attributes = this.combineAttributes(attributes, 'data-' + dataAttr, dataAttributes[dataAttr]);
                 }
               } else {
-                attributes = haml.combineAttributes(attributes, attr, hash[attr]);
+                attributes = this.combineAttributes(attributes, attr, hash[attr]);
               }
             }
           }
+        } catch (ex) {
+          throw haml.HamlRuntime.templateError(lineNumber, characterNumber, currentLine, "Error evaluating attribute hash - " + ex);
         }
-      } catch (ex) {
-        throw haml.templateError(lineNumber, characterNumber, currentLine, "Error evaluating attribute hash - " + ex);
       }
-    }
-
-    var html = '';
-    if (attributes) {
-      for (attr in attributes) {
-        if (attributes.hasOwnProperty(attr) && haml.hasValue(attributes[attr])) {
-          if ((attr === 'id' || attr === 'for') && attributes[attr] instanceof Array) {
-            html += ' ' + attr + '="' + _(attributes[attr]).flatten().join('-') + '"';
-          } else if (attr === 'class' && attributes[attr] instanceof Array) {
-            html += ' ' + attr + '="' + _(attributes[attr]).flatten().join(' ') + '"';
-          } else {
-            html += ' ' + attr + '="' + haml.attrValue(attr, attributes[attr]) + '"';
+      html = '';
+      if (attributes) {
+        for (attr in attributes) {
+          if (!__hasProp.call(attributes, attr)) continue;
+          if (haml.hasValue(attributes[attr])) {
+            if ((attr === 'id' || attr === 'for') && attributes[attr] instanceof Array) {
+              html += ' ' + attr + '="' + _(attributes[attr]).flatten().join('-') + '"';
+            } else if (attr === 'class' && attributes[attr] instanceof Array) {
+              html += ' ' + attr + '="' + _(attributes[attr]).flatten().join(' ') + '"';
+            } else {
+              html += ' ' + attr + '="' + haml.attrValue(attr, attributes[attr]) + '"';
+            }
           }
         }
       }
-    }
-    return html;
-  },
-
-  hasValue: function (value) {
-    return value !== undefined && value !== null && value !== false;
-  },
-
-  attrValue: function (attr, value) {
-    if (_(['selected', 'checked', 'disabled']).contains(attr)) {
-      return attr;
-    } else {
-      return value;
-    }
-  },
-
-  indentText: function (indent) {
-    var text = '';
-    for (var i = 0; i < indent; i++) {
-      text += '  ';
-    }
-    return text;
-  },
-
-  whitespace: function (tokeniser) {
-    var indent = 0;
-    if (tokeniser.token.ws) {
-      indent = tokeniser.token.tokenString.length / 2;
-      tokeniser.getNextToken();
-    }
-    return indent;
-  },
-
-  element: function (tokeniser) {
-    var ident = '';
-    if (tokeniser.token.element) {
-      ident = tokeniser.token.tokenString;
-      tokeniser.getNextToken();
-    }
-    return ident;
-  },
-
-  eolOrEof: function (tokeniser) {
-    if (tokeniser.token.eol) {
-      tokeniser.getNextToken();
-    } else if (!tokeniser.token.eof) {
-      throw tokeniser.parseError("Expected EOL or EOF");
-    }
-  },
-
-  // IDSELECTOR = # ID
-  idSelector: function (tokeniser) {
-    var id = '';
-    if (tokeniser.token.idSelector) {
-      id = tokeniser.token.tokenString;
-      tokeniser.getNextToken();
-    }
-    return id;
-  },
-
-  // CLASSSELECTOR = (.CLASS)+
-  classSelector: function (tokeniser) {
-    var classes = [];
-
-    while (tokeniser.token.classSelector) {
-      classes.push(tokeniser.token.tokenString);
-      tokeniser.getNextToken();
-    }
-
-    return classes;
-  },
-
-  templateError: function (lineNumber, characterNumber, currentLine, error) {
-    var message = error + " at line " + lineNumber + " and character " + characterNumber +
-            ":\n" + currentLine + '\n';
-    for (var i = 0; i < characterNumber - 1; i++) {
-      message += '-';
-    }
-    message += '^';
-    return message;
-  },
-
-  isEolOrEof: function (tokeniser) {
-    return tokeniser.token.eol || tokeniser.token.eof;
-  },
-
-  perserveWhitespace: function (str) {
-    var re = /<[a-zA-Z]+>[^<]*<\/[a-zA-Z]+>/g;
-    var out = '';
-    var i = 0;
-    var result = re.exec(str);
-    if (result) {
-      while (result) {
-        out += str.substring(i, result.index);
-        out += result[0].replace(/\n/g, '&#x000A;');
-        i = result.index + result[0].length;
-        result = re.exec(str);
+      return html;
+    },
+    /*
+        Returns a white space string with a length of indent * 2
+    */
+    indentText: function(indent) {
+      var i, text;
+      text = '';
+      i = 0;
+      while (i < indent) {
+        text += '  ';
+        i++;
       }
-      out += str.substring(i);
-    } else {
-      out = str;
-    }
-    return out;
-  },
-
-  Tokeniser: function (options) {
-    this.buffer = null;
-    this.bufferIndex = null;
-    this.prevToken = null;
-    this.token = null;
-
-    if (options.templateId) {
-      var template = document.getElementById(options.templateId);
-      if (template) {
-        this.buffer = template.innerHTML;
-        this.bufferIndex = 0;
-      } else {
-        throw "Did not find a template with ID '" + options.templateId + "'";
+      return text;
+    },
+    /*
+        Combines the attributes in the attributres hash with the given attribute and value
+        ID, FOR and CLASS attributes will expand to arrays when multiple values are provided
+    */
+    combineAttributes: function(attributes, attrName, attrValue) {
+      var classes;
+      if (haml.hasValue(attrValue)) {
+        if (attrName === 'id' && attrValue.toString().length > 0) {
+          if (attributes && attributes.id instanceof Array) {
+            attributes.id.unshift(attrValue);
+          } else if (attributes && attributes.id) {
+            attributes.id = [attributes.id, attrValue];
+          } else if (attributes) {
+            attributes.id = attrValue;
+          } else {
+            attributes = {
+              id: attrValue
+            };
+          }
+        } else if (attrName === 'for' && attrValue.toString().length > 0) {
+          if (attributes && attributes['for'] instanceof Array) {
+            attributes['for'].unshift(attrValue);
+          } else if (attributes && attributes['for']) {
+            attributes['for'] = [attributes['for'], attrValue];
+          } else if (attributes) {
+            attributes['for'] = attrValue;
+          } else {
+            attributes = {
+              'for': attrValue
+            };
+          }
+        } else if (attrName === 'class') {
+          classes = [];
+          if (attrValue instanceof Array) {
+            classes = classes.concat(attrValue);
+          } else {
+            classes.push(attrValue);
+          }
+          if (attributes && attributes['class']) {
+            attributes['class'] = attributes['class'].concat(classes);
+          } else if (attributes) {
+            attributes['class'] = classes;
+          } else {
+            attributes = {
+              'class': classes
+            };
+          }
+        } else if (attrName !== 'id') {
+          attributes || (attributes = {});
+          attributes[attrName] = attrValue;
+        }
       }
-    } else if (options.template) {
-      this.buffer = options.template;
-      this.bufferIndex = 0;
+      return attributes;
     }
+  };
 
-    this.tokenMatchers = {
-      whitespace:       /[ \t]+/g,
-      element:          /%[a-zA-Z][a-zA-Z0-9]*/g,
-      idSelector:       /#[a-zA-Z_\-][a-zA-Z0-9_\-]*/g,
-      classSelector:    /\.[a-zA-Z0-9_\-]+/g,
-      identifier:       /[a-zA-Z][a-zA-Z0-9\-]*/g,
-      quotedString:     /[\'][^\'\n]*[\']/g,
-      quotedString2:    /[\"][^\"\n]*[\"]/g,
-      comment:          /\-#/g,
-      escapeHtml:       /\&=/g,
-      unescapeHtml:     /\!=/g,
-      objectReference:  /\[[a-zA-Z_][a-zA-Z0-9_]*\]/g
+  /*
+    HAML Tokiniser: This class is responsible for parsing the haml source into tokens
+  */
+
+  Tokeniser = (function() {
+
+    Tokeniser.prototype.currentLineMatcher = /[^\n]*/g;
+
+    Tokeniser.prototype.tokenMatchers = {
+      whitespace: /[ \t]+/g,
+      element: /%[a-zA-Z][a-zA-Z0-9]*/g,
+      idSelector: /#[a-zA-Z_\-][a-zA-Z0-9_\-]*/g,
+      classSelector: /\.[a-zA-Z0-9_\-]+/g,
+      identifier: /[a-zA-Z][a-zA-Z0-9\-]*/g,
+      quotedString: /[\'][^\'\n]*[\']/g,
+      quotedString2: /[\"][^\"\n]*[\"]/g,
+      comment: /\-#/g,
+      escapeHtml: /\&=/g,
+      unescapeHtml: /\!=/g,
+      objectReference: /\[[a-zA-Z_@][a-zA-Z0-9_]*\]/g,
+      doctype: /!!!/g,
+      continueLine: /\|\s*\n/g,
+      filter: /:\w+/g
     };
 
-    this.matchToken = function (matcher) {
+    function Tokeniser(options) {
+      var errorFn, successFn, template,
+        _this = this;
+      this.buffer = null;
+      this.bufferIndex = null;
+      this.prevToken = null;
+      this.token = null;
+      if (options.templateId != null) {
+        template = document.getElementById(options.templateId);
+        if (template) {
+          this.buffer = template.innerHTML;
+          this.bufferIndex = 0;
+        } else {
+          throw "Did not find a template with ID '" + options.templateId + "'";
+        }
+      } else if (options.template != null) {
+        this.buffer = options.template;
+        this.bufferIndex = 0;
+      } else if (options.templateUrl != null) {
+        errorFn = function(jqXHR, textStatus, errorThrown) {
+          throw "Failed to fetch haml template at URL " + options.templateUrl + ": " + textStatus + " " + errorThrown;
+        };
+        successFn = function(data) {
+          _this.buffer = data;
+          return _this.bufferIndex = 0;
+        };
+        jQuery.ajax({
+          url: options.templateUrl,
+          success: successFn,
+          error: errorFn,
+          dataType: 'text',
+          async: false,
+          xhrFields: {
+            withCredentials: true
+          }
+        });
+      }
+    }
+
+    /*
+        Try to match a token with the given regexp
+    */
+
+    Tokeniser.prototype.matchToken = function(matcher) {
+      var result;
       matcher.lastIndex = this.bufferIndex;
-      var result = matcher.exec(this.buffer);
-      if (result && result.index === this.bufferIndex) {
+      result = matcher.exec(this.buffer);
+      if ((result != null ? result.index : void 0) === this.bufferIndex) {
         return result[0];
       }
-      return null;
     };
 
-    this.getNextToken = function () {
+    /*
+        Match a multi-character token
+    */
 
-      if (isNaN(this.bufferIndex)) {
-        throw haml.templateError(this.lineNumber, this.characterNumber, this.currentLine,
-                "An internal parser error has occurred in the HAML parser");
+    Tokeniser.prototype.matchMultiCharToken = function(matcher, token, tokenStr) {
+      var matched, _ref;
+      if (!this.token) {
+        matched = this.matchToken(matcher);
+        if (matched) {
+          this.token = token;
+          this.token.tokenString = (_ref = typeof tokenStr === "function" ? tokenStr(matched) : void 0) != null ? _ref : matched;
+          this.token.matched = matched;
+          return this.advanceCharsInBuffer(matched.length);
+        }
       }
+    };
 
+    /*
+        Match a single character token
+    */
+
+    Tokeniser.prototype.matchSingleCharToken = function(ch, token) {
+      if (!this.token && this.buffer.charAt(this.bufferIndex) === ch) {
+        this.token = token;
+        this.token.tokenString = ch;
+        this.token.matched = ch;
+        return this.advanceCharsInBuffer(1);
+      }
+    };
+
+    /*
+        Match and return the next token in the input buffer
+    */
+
+    Tokeniser.prototype.getNextToken = function() {
+      var braceCount, ch, ch1, characterNumberStart, i, lineNumberStart, str;
+      if (isNaN(this.bufferIndex)) {
+        throw haml.HamlRuntime.templateError(this.lineNumber, this.characterNumber, this.currentLine, "An internal parser error has occurred in the HAML parser");
+      }
       this.prevToken = this.token;
       this.token = null;
-
       if (this.buffer === null || this.buffer.length === this.bufferIndex) {
-        this.token = { eof: true, token: 'EOF' };
+        this.token = {
+          eof: true,
+          token: 'EOF'
+        };
       } else {
         this.initLine();
-
         if (!this.token) {
-          var ch = this.buffer.charCodeAt(this.bufferIndex);
-          var ch1 = this.buffer.charCodeAt(this.bufferIndex + 1);
+          ch = this.buffer.charCodeAt(this.bufferIndex);
+          ch1 = this.buffer.charCodeAt(this.bufferIndex + 1);
           if (ch === 10 || (ch === 13 && ch1 === 10)) {
-            this.token = { eol: true, token: 'EOL' };
+            this.token = {
+              eol: true,
+              token: 'EOL'
+            };
             if (ch === 13 && ch1 === 10) {
               this.advanceCharsInBuffer(2);
               this.token.matched = String.fromCharCode(ch) + String.fromCharCode(ch1);
@@ -801,99 +351,83 @@ root.haml = {
             this.currentLine = this.getCurrentLine();
           }
         }
-
+        this.matchMultiCharToken(this.tokenMatchers.whitespace, {
+          ws: true,
+          token: 'WS'
+        });
+        this.matchMultiCharToken(this.tokenMatchers.continueLine, {
+          continueLine: true,
+          token: 'CONTINUELINE'
+        });
+        this.matchMultiCharToken(this.tokenMatchers.element, {
+          element: true,
+          token: 'ELEMENT'
+        }, function(matched) {
+          return matched.substring(1);
+        });
+        this.matchMultiCharToken(this.tokenMatchers.idSelector, {
+          idSelector: true,
+          token: 'ID'
+        }, function(matched) {
+          return matched.substring(1);
+        });
+        this.matchMultiCharToken(this.tokenMatchers.classSelector, {
+          classSelector: true,
+          token: 'CLASS'
+        }, function(matched) {
+          return matched.substring(1);
+        });
+        this.matchMultiCharToken(this.tokenMatchers.identifier, {
+          identifier: true,
+          token: 'IDENTIFIER'
+        });
+        this.matchMultiCharToken(this.tokenMatchers.doctype, {
+          doctype: true,
+          token: 'DOCTYPE'
+        });
+        this.matchMultiCharToken(this.tokenMatchers.filter, {
+          filter: true,
+          token: 'FILTER'
+        }, function(matched) {
+          return matched.substring(1);
+        });
         if (!this.token) {
-          var ws = this.matchToken(this.tokenMatchers.whitespace);
-          if (ws) {
-            this.token = { ws: true, token: 'WS', tokenString: ws, matched: ws };
-            this.advanceCharsInBuffer(ws.length);
-          }
-        }
-
-        if (!this.token) {
-          var element = this.matchToken(this.tokenMatchers.element);
-          if (element) {
-            this.token = { element: true, token: 'ELEMENT', tokenString: element.substring(1),
-              matched: element };
-            this.advanceCharsInBuffer(element.length);
-          }
-        }
-
-        if (!this.token) {
-          var id = this.matchToken(this.tokenMatchers.idSelector);
-          if (id) {
-            this.token = { idSelector: true, token: 'ID', tokenString: id.substring(1), matched: id };
-            this.advanceCharsInBuffer(id.length);
-          }
-        }
-
-        if (!this.token) {
-          var c = this.matchToken(this.tokenMatchers.classSelector);
-          if (c) {
-            this.token = { classSelector: true, token: 'CLASS', tokenString: c.substring(1), matched: c };
-            this.advanceCharsInBuffer(c.length);
-          }
-        }
-
-        if (!this.token) {
-          var identifier = this.matchToken(this.tokenMatchers.identifier);
-          if (identifier) {
-            this.token = { identifier: true, token: 'IDENTIFIER', tokenString: identifier, matched: identifier };
-            this.advanceCharsInBuffer(identifier.length);
-          }
-        }
-
-        if (!this.token) {
-          var str = this.matchToken(this.tokenMatchers.quotedString);
-          if (!str) {
-            str = this.matchToken(this.tokenMatchers.quotedString2);
-          }
+          str = this.matchToken(this.tokenMatchers.quotedString);
+          if (!str) str = this.matchToken(this.tokenMatchers.quotedString2);
           if (str) {
-            this.token = { string: true, token: 'STRING', tokenString: str.substring(1, str.length - 1),
-              matched: str };
+            this.token = {
+              string: true,
+              token: 'STRING',
+              tokenString: str.substring(1, str.length - 1),
+              matched: str
+            };
             this.advanceCharsInBuffer(str.length);
           }
         }
-
-        if (!this.token) {
-          var comment = this.matchToken(this.tokenMatchers.comment);
-          if (comment) {
-            this.token = { comment: true, token: 'COMMENT', tokenString: comment, matched: comment};
-            this.advanceCharsInBuffer(comment.length);
-          }
-        }
-
-        if (!this.token) {
-          var escapeHtml = this.matchToken(this.tokenMatchers.escapeHtml);
-          if (escapeHtml) {
-            this.token = { escapeHtml: true, token: 'ESCAPEHTML', tokenString: escapeHtml, matched: escapeHtml};
-            this.advanceCharsInBuffer(escapeHtml.length);
-          }
-        }
-
-        if (!this.token) {
-          var unescapeHtml = this.matchToken(this.tokenMatchers.unescapeHtml);
-          if (unescapeHtml) {
-            this.token = { unescapeHtml: true, token: 'UNESCAPEHTML', tokenString: unescapeHtml, matched: unescapeHtml};
-            this.advanceCharsInBuffer(unescapeHtml.length);
-          }
-        }
-
-        if (!this.token) {
-          var objectReference = this.matchToken(this.tokenMatchers.objectReference);
-          if (objectReference) {
-            this.token = { objectReference: true, token: 'OBJECTREFERENCE', tokenString: objectReference.substring(1,
-              objectReference.length - 1), matched: objectReference};
-            this.advanceCharsInBuffer(objectReference.length);
-          }
-        }
-
+        this.matchMultiCharToken(this.tokenMatchers.comment, {
+          comment: true,
+          token: 'COMMENT'
+        });
+        this.matchMultiCharToken(this.tokenMatchers.escapeHtml, {
+          escapeHtml: true,
+          token: 'ESCAPEHTML'
+        });
+        this.matchMultiCharToken(this.tokenMatchers.unescapeHtml, {
+          unescapeHtml: true,
+          token: 'UNESCAPEHTML'
+        });
+        this.matchMultiCharToken(this.tokenMatchers.objectReference, {
+          objectReference: true,
+          token: 'OBJECTREFERENCE'
+        }, function(matched) {
+          return matched.substring(1, matched.length - 1);
+        });
         if (!this.token) {
           if (this.buffer && this.buffer.charAt(this.bufferIndex) === '{') {
-            var i = this.bufferIndex + 1;
-            var characterNumberStart = this.characterNumber;
-            var lineNumberStart = this.lineNumber;
-            var braceCount = 1;
+            i = this.bufferIndex + 1;
+            characterNumberStart = this.characterNumber;
+            lineNumberStart = this.lineNumber;
+            braceCount = 1;
             while (i < this.buffer.length && (braceCount > 1 || this.buffer.charAt(i) !== '}')) {
               if (this.buffer.charAt(i) === '{') {
                 braceCount++;
@@ -907,115 +441,84 @@ root.haml = {
               this.lineNumber = lineNumberStart;
               throw this.parseError('Error parsing attribute hash - Did not find a terminating "}"');
             } else {
-              this.token = { attributeHash: true, token: 'ATTRHASH',
+              this.token = {
+                attributeHash: true,
+                token: 'ATTRHASH',
                 tokenString: this.buffer.substring(this.bufferIndex, i + 1),
-                matched: this.buffer.substring(this.bufferIndex, i + 1) };
+                matched: this.buffer.substring(this.bufferIndex, i + 1)
+              };
               this.advanceCharsInBuffer(i - this.bufferIndex + 1);
             }
           }
         }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '(') {
-            this.token = { openBracket: true, token: 'OPENBRACKET', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === ')') {
-            this.token = { closeBracket: true, token: 'CLOSEBRACKET', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '=') {
-            this.token = { equal: true, token: 'EQUAL', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '/') {
-            this.token = { slash: true, token: 'SLASH', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '!') {
-            this.token = { exclamation: true, token: 'EXCLAMATION', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '-') {
-            this.token = { minus: true, token: 'MINUS', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '&') {
-            this.token = { amp: true, token: 'AMP', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '<') {
-            this.token = { lt: true, token: 'LT', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '>') {
-            this.token = { gt: true, token: 'GT', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
-        if (!this.token) {
-          if (this.buffer.charAt(this.bufferIndex) === '~') {
-            this.token = { tilde: true, token: 'TILDE', tokenString: this.buffer.charAt(this.bufferIndex),
-              matched: this.buffer.charAt(this.bufferIndex) };
-            this.advanceCharsInBuffer(1);
-          }
-        }
-
+        this.matchSingleCharToken('(', {
+          openBracket: true,
+          token: 'OPENBRACKET'
+        });
+        this.matchSingleCharToken(')', {
+          closeBracket: true,
+          token: 'CLOSEBRACKET'
+        });
+        this.matchSingleCharToken('=', {
+          equal: true,
+          token: 'EQUAL'
+        });
+        this.matchSingleCharToken('/', {
+          slash: true,
+          token: 'SLASH'
+        });
+        this.matchSingleCharToken('!', {
+          exclamation: true,
+          token: 'EXCLAMATION'
+        });
+        this.matchSingleCharToken('-', {
+          minus: true,
+          token: 'MINUS'
+        });
+        this.matchSingleCharToken('&', {
+          amp: true,
+          token: 'AMP'
+        });
+        this.matchSingleCharToken('<', {
+          lt: true,
+          token: 'LT'
+        });
+        this.matchSingleCharToken('>', {
+          gt: true,
+          token: 'GT'
+        });
+        this.matchSingleCharToken('~', {
+          tilde: true,
+          token: 'TILDE'
+        });
         if (this.token === null) {
-          this.token = { unknown: true, token: 'UNKNOWN' };
+          this.token = {
+            unknown: true,
+            token: 'UNKNOWN'
+          };
         }
       }
       return this.token;
     };
 
-    this.lookAhead = function (numberOfTokens) {
-      var token = null;
-      if (numberOfTokens > 0) {
-        var currentToken = this.token;
-        var prevToken = this.prevToken;
-        var currentLine = this.currentLine;
-        var lineNumber = this.lineNumber;
-        var characterNumber = this.characterNumber;
-        var bufferIndex = this.bufferIndex;
+    /*
+        Look ahead a number of tokens and return the token found
+    */
 
-        for (var i = 0; i < numberOfTokens; i++) {
+    Tokeniser.prototype.lookAhead = function(numberOfTokens) {
+      var bufferIndex, characterNumber, currentLine, currentToken, i, lineNumber, prevToken, token;
+      token = null;
+      if (numberOfTokens > 0) {
+        currentToken = this.token;
+        prevToken = this.prevToken;
+        currentLine = this.currentLine;
+        lineNumber = this.lineNumber;
+        characterNumber = this.characterNumber;
+        bufferIndex = this.bufferIndex;
+        i = 0;
+        while (i++ < numberOfTokens) {
           token = this.getNextToken();
         }
-
         this.token = currentToken;
         this.prevToken = prevToken;
         this.currentLine = currentLine;
@@ -1026,51 +529,101 @@ root.haml = {
       return token;
     };
 
-    this.initLine = function () {
+    /*
+        Initilise the line and character counters
+    */
+
+    Tokeniser.prototype.initLine = function() {
       if (!this.currentLine && this.currentLine !== "") {
         this.currentLine = this.getCurrentLine();
         this.lineNumber = 1;
-        this.characterNumber = 0;
+        return this.characterNumber = 0;
       }
     };
 
-    this.currentLineMatcher = /[^\n]*/g;
-    this.getCurrentLine = function (index) {
-      var i = index || 0;
-      this.currentLineMatcher.lastIndex = this.bufferIndex + i;
-      var line = this.currentLineMatcher.exec(this.buffer);
+    /*
+        Returns the current line in the input buffer
+    */
+
+    Tokeniser.prototype.getCurrentLine = function(index) {
+      var line;
+      this.currentLineMatcher.lastIndex = this.bufferIndex + (index != null ? index : 0);
+      line = this.currentLineMatcher.exec(this.buffer);
       if (line) {
         return line[0];
-      }
-      else {
+      } else {
         return '';
       }
     };
 
-    this.parseError = function (error) {
-      return haml.templateError(this.lineNumber, this.characterNumber, this.currentLine, error);
+    /*
+        Returns an error string filled out with the line and character counters
+    */
+
+    Tokeniser.prototype.parseError = function(error) {
+      return haml.HamlRuntime.templateError(this.lineNumber, this.characterNumber, this.currentLine, error);
     };
 
-    this.skipToEOLorEOF = function () {
-      var text = '';
+    /*
+        Skips to the end of the line and returns the string that was skipped
+    */
 
-      if (!this.token.eof && !this.token.eol) {
+    Tokeniser.prototype.skipToEOLorEOF = function() {
+      var contents, line, text;
+      text = '';
+      if (!(this.token.eof || this.token.eol)) {
         this.currentLineMatcher.lastIndex = this.bufferIndex;
-        var line = this.currentLineMatcher.exec(this.buffer);
+        line = this.currentLineMatcher.exec(this.buffer);
         if (line && line.index === this.bufferIndex) {
-          text = line[0];
-          this.advanceCharsInBuffer(text.length);
-          this.getNextToken();
+          contents = _(line[0]).rtrim();
+          if (_(contents).endsWith('|')) {
+            text += contents.substring(0, contents.length - 1);
+            this.advanceCharsInBuffer(contents.length - 1);
+            this.getNextToken();
+            text += this.parseMultiLine();
+          } else {
+            text = line[0];
+            this.advanceCharsInBuffer(text.length);
+            this.getNextToken();
+          }
         }
       }
-
       return text;
     };
 
-    this.advanceCharsInBuffer = function (numChars) {
-      for (var i = 0; i < numChars; i++) {
-        var ch = this.buffer.charCodeAt(this.bufferIndex + i);
-        var ch1 = this.buffer.charCodeAt(this.bufferIndex + i + 1);
+    /*
+        Parses a multiline code block and returns the parsed text
+    */
+
+    Tokeniser.prototype.parseMultiLine = function() {
+      var contents, line, text;
+      text = '';
+      while (this.token.continueLine) {
+        this.currentLineMatcher.lastIndex = this.bufferIndex;
+        line = this.currentLineMatcher.exec(this.buffer);
+        if (line && line.index === this.bufferIndex) {
+          contents = _(line[0]).rtrim();
+          if (_(contents).endsWith('|')) {
+            text += contents.substring(0, contents.length - 1);
+            this.advanceCharsInBuffer(contents.length - 1);
+          }
+          this.getNextToken();
+        }
+      }
+      this.pushBackToken();
+      return text;
+    };
+
+    /*
+        Advances the input buffer pointer by a number of characters, updating the line and character counters
+    */
+
+    Tokeniser.prototype.advanceCharsInBuffer = function(numChars) {
+      var ch, ch1, i;
+      i = 0;
+      while (i < numChars) {
+        ch = this.buffer.charCodeAt(this.bufferIndex + i);
+        ch1 = this.buffer.charCodeAt(this.bufferIndex + i + 1);
         if (ch === 13 && ch1 === 10) {
           this.lineNumber++;
           this.characterNumber = 0;
@@ -1083,11 +636,16 @@ root.haml = {
         } else {
           this.characterNumber++;
         }
+        i++;
       }
-      this.bufferIndex += numChars;
+      return this.bufferIndex += numChars;
     };
 
-    this.currentParsePoint = function () {
+    /*
+        Returns the current line and character counters
+    */
+
+    Tokeniser.prototype.currentParsePoint = function() {
       return {
         lineNumber: this.lineNumber,
         characterNumber: this.characterNumber,
@@ -1095,62 +653,1212 @@ root.haml = {
       };
     };
 
-    this.pushBackToken = function () {
-      if (!this.token.unknown) {
+    /*
+        Pushes back the current token onto the front of the input buffer
+    */
+
+    Tokeniser.prototype.pushBackToken = function() {
+      if (!this.token.unknown && !this.token.eof) {
         this.bufferIndex -= this.token.matched.length;
-        this.token = this.prevToken;
-      }
-    };
-  },
-
-  Buffer: function () {
-    this.buffer = '';
-    this.outputBuffer = '';
-
-    this.append = function (str) {
-      if (str && str.length > 0) {
-        this.buffer += str;
+        return this.token = this.prevToken;
       }
     };
 
-    this.appendToOutputBuffer = function (str) {
+    /*
+        Is the current token an end of line or end of input buffer
+    */
+
+    Tokeniser.prototype.isEolOrEof = function() {
+      return this.token.eol || this.token.eof;
+    };
+
+    return Tokeniser;
+
+  })();
+
+  /*
+    Provides buffering between the generated javascript and html contents
+  */
+
+  Buffer = (function() {
+
+    function Buffer(generator) {
+      this.generator = generator;
+      this.buffer = '';
+      this.outputBuffer = '';
+    }
+
+    Buffer.prototype.append = function(str) {
+      if (this.buffer.length === 0) this.generator.mark();
+      if (str && str.length > 0) return this.buffer += str;
+    };
+
+    Buffer.prototype.appendToOutputBuffer = function(str) {
       if (str && str.length > 0) {
         this.flush();
-        this.outputBuffer += str;
+        return this.outputBuffer += str;
       }
     };
 
-    this.flush = function () {
+    Buffer.prototype.flush = function() {
       if (this.buffer && this.buffer.length > 0) {
-        this.outputBuffer += '    html.push("' + haml.escapeJs(this.buffer) + '");\n';
+        this.outputBuffer += this.generator.generateFlush(this.buffer);
       }
-      this.buffer = '';
+      return this.buffer = '';
     };
 
-    this.output = function () {
+    Buffer.prototype.output = function() {
       return this.outputBuffer;
     };
 
-    this.trimWhitespace = function () {
+    Buffer.prototype.trimWhitespace = function() {
+      var ch, i;
       if (this.buffer.length > 0) {
-        var i = this.buffer.length - 1;
+        i = this.buffer.length - 1;
         while (i > 0) {
-          var ch = this.buffer.charAt(i);
+          ch = this.buffer.charAt(i);
           if (ch === ' ' || ch === '\t' || ch === '\n') {
             i--;
-          }
-          else if (i > 1 && (ch === 'n' || ch === 't') && (this.buffer.charAt(i - 1) === '\\')) {
+          } else if (i > 1 && (ch === 'n' || ch === 't') && (this.buffer.charAt(i - 1) === '\\')) {
             i -= 2;
           } else {
             break;
           }
         }
         if (i > 0 && i < this.buffer.length - 1) {
-          this.buffer = this.buffer.substring(0, i + 1);
+          return this.buffer = this.buffer.substring(0, i + 1);
         } else if (i === 0) {
-          this.buffer = '';
+          return this.buffer = '';
         }
       }
     };
-  }
-};
+
+    return Buffer;
+
+  })();
+
+  /*
+    Common code shared across all code generators
+  */
+
+  CodeGenerator = (function() {
+
+    function CodeGenerator() {}
+
+    CodeGenerator.prototype.embeddedCodeBlockMatcher = /#{([^}]*)}/g;
+
+    return CodeGenerator;
+
+  })();
+
+  /*
+    Code generator that generates a Javascript function body
+  */
+
+  JsCodeGenerator = (function(_super) {
+
+    __extends(JsCodeGenerator, _super);
+
+    function JsCodeGenerator() {
+      this.outputBuffer = new haml.Buffer(this);
+    }
+
+    /*
+        Append a line with embedded javascript code
+    */
+
+    JsCodeGenerator.prototype.appendEmbeddedCode = function(indentText, expression, escapeContents, perserveWhitespace, currentParsePoint) {
+      this.outputBuffer.flush();
+      this.outputBuffer.appendToOutputBuffer(indentText + 'try {\n');
+      this.outputBuffer.appendToOutputBuffer(indentText + '    var value = eval("' + expression.replace(/"/g, '\\"').replace(/\\n/g, '\\\\n') + '");\n');
+      this.outputBuffer.appendToOutputBuffer(indentText + '    value = value === null ? "" : value;');
+      if (escapeContents) {
+        this.outputBuffer.appendToOutputBuffer(indentText + '    html.push(haml.HamlRuntime.escapeHTML(String(value)));\n');
+      } else if (perserveWhitespace) {
+        this.outputBuffer.appendToOutputBuffer(indentText + '    html.push(haml.HamlRuntime.perserveWhitespace(String(value)));\n');
+      } else {
+        this.outputBuffer.appendToOutputBuffer(indentText + '    html.push(String(value));\n');
+      }
+      this.outputBuffer.appendToOutputBuffer(indentText + '} catch (e) {\n');
+      this.outputBuffer.appendToOutputBuffer(indentText + '  throw new Error(haml.HamlRuntime.templateError(' + currentParsePoint.lineNumber + ', ' + currentParsePoint.characterNumber + ', "' + this.escapeCode(currentParsePoint.currentLine) + '",\n');
+      this.outputBuffer.appendToOutputBuffer(indentText + '    "Error evaluating expression - " + e));\n');
+      return this.outputBuffer.appendToOutputBuffer(indentText + '}\n');
+    };
+
+    /*
+        Initilising the output buffer with any variables or code
+    */
+
+    JsCodeGenerator.prototype.initOutput = function() {
+      return this.outputBuffer.appendToOutputBuffer('  var html = [];\n' + '  var hashFunction = null, hashObject = null, objRef = null, objRefFn = null;\n  with (context || {}) {\n');
+    };
+
+    /*
+        Flush and close the output buffer and return the contents
+    */
+
+    JsCodeGenerator.prototype.closeAndReturnOutput = function() {
+      this.outputBuffer.flush();
+      return this.outputBuffer.output() + '  }\n  return html.join("");\n';
+    };
+
+    /*
+        Append a line of code to the output buffer
+    */
+
+    JsCodeGenerator.prototype.appendCodeLine = function(line) {
+      this.outputBuffer.flush();
+      this.outputBuffer.appendToOutputBuffer(HamlRuntime.indentText(this.indent));
+      this.outputBuffer.appendToOutputBuffer(line);
+      return this.outputBuffer.appendToOutputBuffer('\n');
+    };
+
+    /*
+        Does the current line end with a function declaration?
+    */
+
+    JsCodeGenerator.prototype.lineMatchesStartFunctionBlock = function(line) {
+      return line.match(/function\s\((,?\s*\w+)*\)\s*\{\s*$/);
+    };
+
+    /*
+        Does the current line end with a starting code block
+    */
+
+    JsCodeGenerator.prototype.lineMatchesStartBlock = function(line) {
+      return line.match(/\{\s*$/);
+    };
+
+    /*
+        Generate the code to close off a code block
+    */
+
+    JsCodeGenerator.prototype.closeOffCodeBlock = function(tokeniser) {
+      if (!(tokeniser.token.minus && tokeniser.matchToken(/\s*\}/g))) {
+        this.outputBuffer.flush();
+        return this.outputBuffer.appendToOutputBuffer(HamlRuntime.indentText(this.indent) + '}\n');
+      }
+    };
+
+    /*
+        Generate the code to close off a function parameter
+    */
+
+    JsCodeGenerator.prototype.closeOffFunctionBlock = function(tokeniser) {
+      if (!(tokeniser.token.minus && tokeniser.matchToken(/\s*\}/g))) {
+        this.outputBuffer.flush();
+        return this.outputBuffer.appendToOutputBuffer(HamlRuntime.indentText(this.indent) + '});\n');
+      }
+    };
+
+    /*
+        Generate the code for dynamic attributes ({} form)
+    */
+
+    JsCodeGenerator.prototype.generateCodeForDynamicAttributes = function(id, classes, attributeList, attributeHash, objectRef, currentParsePoint) {
+      this.outputBuffer.flush();
+      if (attributeHash.length > 0) {
+        attributeHash = this.replaceReservedWordsInHash(attributeHash);
+        this.outputBuffer.appendToOutputBuffer('    hashFunction = function () { return eval("hashObject = ' + attributeHash.replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"); };\n');
+      }
+      if (objectRef.length > 0) {
+        this.outputBuffer.appendToOutputBuffer('    objRefFn = function () { return eval("objRef = ' + objectRef.replace(/"/g, '\\"') + '"); };\n');
+      }
+      return this.outputBuffer.appendToOutputBuffer('    html.push(haml.HamlRuntime.generateElementAttributes(context, "' + id + '", ["' + classes.join('","') + '"], objRefFn, ' + JSON.stringify(attributeList) + ', hashFunction, ' + currentParsePoint.lineNumber + ', ' + currentParsePoint.characterNumber + ', "' + this.escapeCode(currentParsePoint.currentLine) + '"));\n');
+    };
+
+    /*
+        Clean any reserved words in the given hash
+    */
+
+    JsCodeGenerator.prototype.replaceReservedWordsInHash = function(hash) {
+      var reservedWord, resultHash, _i, _len, _ref;
+      resultHash = hash;
+      _ref = ['class', 'for'];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        reservedWord = _ref[_i];
+        resultHash = resultHash.replace(reservedWord + ':', '"' + reservedWord + '":');
+      }
+      return resultHash;
+    };
+
+    /*
+        Escape the line so it is safe to put into a javascript string
+    */
+
+    JsCodeGenerator.prototype.escapeCode = function(jsStr) {
+      return jsStr.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    };
+
+    /*
+        Generate a function from the function body
+    */
+
+    JsCodeGenerator.prototype.generateJsFunction = function(functionBody) {
+      try {
+        return new Function('context', functionBody);
+      } catch (e) {
+        throw "Incorrect embedded code has resulted in an invalid Haml function - " + e + "\nGenerated Function:\n" + functionBody;
+      }
+    };
+
+    /*
+        Generate the code required to support a buffer flush
+    */
+
+    JsCodeGenerator.prototype.generateFlush = function(bufferStr) {
+      return '    html.push("' + this.escapeCode(bufferStr) + '");\n';
+    };
+
+    /*
+        Set the current indent level
+    */
+
+    JsCodeGenerator.prototype.setIndent = function(indent) {
+      return this.indent = indent;
+    };
+
+    /*
+        Save the current indent level if required
+    */
+
+    JsCodeGenerator.prototype.mark = function() {};
+
+    /*
+        Append the text contents to the buffer, expanding any embedded code
+    */
+
+    JsCodeGenerator.prototype.appendTextContents = function(text, shouldInterpolate, currentParsePoint, options) {
+      if (options == null) options = {};
+      if (shouldInterpolate && text.match(/#{[^}]*}/)) {
+        return this.interpolateString(text, currentParsePoint, options);
+      } else {
+        return this.outputBuffer.append(this.processText(text, options));
+      }
+    };
+
+    /*
+        Interpolate any embedded code in the text
+    */
+
+    JsCodeGenerator.prototype.interpolateString = function(text, currentParsePoint, options) {
+      var index, precheedingChar, precheedingChar2, result;
+      index = 0;
+      result = this.embeddedCodeBlockMatcher.exec(text);
+      while (result) {
+        if (result.index > 0) precheedingChar = text.charAt(result.index - 1);
+        if (result.index > 1) precheedingChar2 = text.charAt(result.index - 2);
+        if (precheedingChar === '\\' && precheedingChar2 !== '\\') {
+          if (result.index !== 0) {
+            this.outputBuffer.append(this.processText(text.substring(index, result.index - 1), options));
+          }
+          this.outputBuffer.append(this.processText(result[0]), options);
+        } else {
+          this.outputBuffer.append(this.processText(text.substring(index, result.index)), options);
+          this.appendEmbeddedCode(HamlRuntime.indentText(this.indent + 1), result[1], options.escapeHTML, options.perserveWhitespace, currentParsePoint);
+        }
+        index = this.embeddedCodeBlockMatcher.lastIndex;
+        result = this.embeddedCodeBlockMatcher.exec(text);
+      }
+      if (index < text.length) {
+        return this.outputBuffer.append(this.processText(text.substring(index), options));
+      }
+    };
+
+    /*
+        process text based on escape and preserve flags
+    */
+
+    JsCodeGenerator.prototype.processText = function(text, options) {
+      if (options != null ? options.escapeHTML : void 0) {
+        return haml.HamlRuntime.escapeHTML(text);
+      } else if (options != null ? options.perserveWhitespace : void 0) {
+        return haml.HamlRuntime.perserveWhitespace(text);
+      } else {
+        return text;
+      }
+    };
+
+    return JsCodeGenerator;
+
+  })(CodeGenerator);
+
+  /*
+    Code generator that generates a coffeescript function body
+  */
+
+  CoffeeCodeGenerator = (function(_super) {
+
+    __extends(CoffeeCodeGenerator, _super);
+
+    function CoffeeCodeGenerator() {
+      this.outputBuffer = new haml.Buffer(this);
+    }
+
+    CoffeeCodeGenerator.prototype.appendEmbeddedCode = function(indentText, expression, escapeContents, perserveWhitespace, currentParsePoint) {
+      var indent;
+      this.outputBuffer.flush();
+      indent = this.calcCodeIndent();
+      this.outputBuffer.appendToOutputBuffer(indent + "try\n");
+      this.outputBuffer.appendToOutputBuffer(indent + "  exp = CoffeeScript.compile('" + expression.replace(/'/g, "\\'").replace(/\\n/g, '\\\\n') + "', bare: true)\n");
+      this.outputBuffer.appendToOutputBuffer(indent + "  value = eval(exp)\n");
+      this.outputBuffer.appendToOutputBuffer(indent + "  value ?= ''\n");
+      if (escapeContents) {
+        this.outputBuffer.appendToOutputBuffer(indent + "  html.push(haml.HamlRuntime.escapeHTML(String(value)))\n");
+      } else if (perserveWhitespace) {
+        this.outputBuffer.appendToOutputBuffer(indent + "  html.push(haml.HamlRuntime.perserveWhitespace(String(value)))\n");
+      } else {
+        this.outputBuffer.appendToOutputBuffer(indent + "  html.push(String(value))\n");
+      }
+      this.outputBuffer.appendToOutputBuffer(indent + "catch e \n");
+      this.outputBuffer.appendToOutputBuffer(indent + "  throw new Error(haml.HamlRuntime.templateError(" + currentParsePoint.lineNumber + ", " + currentParsePoint.characterNumber + ", '" + this.escapeCode(currentParsePoint.currentLine) + "',\n");
+      return this.outputBuffer.appendToOutputBuffer(indent + "    'Error evaluating expression - ' + e))\n");
+    };
+
+    CoffeeCodeGenerator.prototype.initOutput = function() {
+      return this.outputBuffer.appendToOutputBuffer('html = []\n');
+    };
+
+    CoffeeCodeGenerator.prototype.closeAndReturnOutput = function() {
+      this.outputBuffer.flush();
+      return this.outputBuffer.output() + 'return html.join("")\n';
+    };
+
+    CoffeeCodeGenerator.prototype.appendCodeLine = function(line) {
+      this.outputBuffer.flush();
+      if ((this.prevCodeIndent != null) && this.prevCodeIndent < this.indent) {
+        this.outputBuffer.appendToOutputBuffer(HamlRuntime.indentText(this.indent - this.prevCodeIndent));
+      }
+      this.outputBuffer.appendToOutputBuffer(_(line).trim());
+      this.outputBuffer.appendToOutputBuffer('\n');
+      return this.prevCodeIndent = this.indent;
+    };
+
+    CoffeeCodeGenerator.prototype.lineMatchesStartFunctionBlock = function(line) {
+      return line.match(/\) [\-=]>\s*$/);
+    };
+
+    CoffeeCodeGenerator.prototype.lineMatchesStartBlock = function(line) {
+      return true;
+    };
+
+    CoffeeCodeGenerator.prototype.closeOffCodeBlock = function(tokeniser) {
+      return this.outputBuffer.flush();
+    };
+
+    CoffeeCodeGenerator.prototype.closeOffFunctionBlock = function(tokeniser) {
+      return this.outputBuffer.flush();
+    };
+
+    CoffeeCodeGenerator.prototype.generateCodeForDynamicAttributes = function(id, classes, attributeList, attributeHash, objectRef, currentParsePoint) {
+      this.outputBuffer.flush();
+      if (attributeHash.length > 0) {
+        attributeHash = this.replaceReservedWordsInHash(attributeHash);
+        this.outputBuffer.appendToOutputBuffer("hashFunction = () -> s = CoffeeScript.compile('" + attributeHash.replace(/'/g, "\\'").replace(/\n/g, '\\n') + "', bare: true); eval 'hashObject = ' + s\n");
+      }
+      if (objectRef.length > 0) {
+        this.outputBuffer.appendToOutputBuffer("objRefFn = () -> s = CoffeeScript.compile('" + objectRef.replace(/'/g, "\\'") + "', bare: true); eval 'objRef = ' + s\n");
+      }
+      return this.outputBuffer.appendToOutputBuffer("html.push(haml.HamlRuntime.generateElementAttributes(this, '" + id + "', ['" + classes.join("','") + "'], objRefFn ? null, " + JSON.stringify(attributeList) + ", hashFunction ? null, " + currentParsePoint.lineNumber + ", " + currentParsePoint.characterNumber + ", '" + this.escapeCode(currentParsePoint.currentLine) + "'))\n");
+    };
+
+    CoffeeCodeGenerator.prototype.replaceReservedWordsInHash = function(hash) {
+      var reservedWord, resultHash, _i, _len, _ref;
+      resultHash = hash;
+      _ref = ['class', 'for'];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        reservedWord = _ref[_i];
+        resultHash = resultHash.replace(reservedWord + ':', "'" + reservedWord + "':");
+      }
+      return resultHash;
+    };
+
+    /*
+        Escapes the string for insertion into the generated code. Embedded code blocks in strings must not be escaped
+    */
+
+    CoffeeCodeGenerator.prototype.escapeCode = function(str) {
+      var index, outString, precheedingChar, precheedingChar2, result;
+      outString = '';
+      index = 0;
+      result = this.embeddedCodeBlockMatcher.exec(str);
+      while (result) {
+        if (result.index > 0) precheedingChar = str.charAt(result.index - 1);
+        if (result.index > 1) precheedingChar2 = str.charAt(result.index - 2);
+        if (precheedingChar === '\\' && precheedingChar2 !== '\\') {
+          if (result.index !== 0) {
+            outString += this._escapeText(str.substring(index, result.index - 1));
+          }
+          outString += this._escapeText('\\' + result[0]);
+        } else {
+          outString += this._escapeText(str.substring(index, result.index));
+          outString += result[0];
+        }
+        index = this.embeddedCodeBlockMatcher.lastIndex;
+        result = this.embeddedCodeBlockMatcher.exec(str);
+      }
+      if (index < str.length) outString += this._escapeText(str.substring(index));
+      return outString;
+    };
+
+    CoffeeCodeGenerator.prototype._escapeText = function(text) {
+      return text.replace(/\\/g, '\\\\').replace(/'/g, '\\\'').replace(/"/g, '\\\"').replace(/\n/g, '\\n').replace(/(^|[^\\]{2})\\\\#{/g, '$1\\#{');
+    };
+
+    /*
+        Generates the javascript function by compiling the given code with coffeescript compiler
+    */
+
+    CoffeeCodeGenerator.prototype.generateJsFunction = function(functionBody) {
+      var fn;
+      try {
+        fn = CoffeeScript.compile(functionBody, {
+          bare: true
+        });
+        return new Function(fn);
+      } catch (e) {
+        throw "Incorrect embedded code has resulted in an invalid Haml function - " + e + "\nGenerated Function:\n" + fn;
+      }
+    };
+
+    CoffeeCodeGenerator.prototype.generateFlush = function(bufferStr) {
+      return this.calcCodeIndent() + "html.push('" + this.escapeCode(bufferStr) + "')\n";
+    };
+
+    CoffeeCodeGenerator.prototype.setIndent = function(indent) {
+      return this.indent = indent;
+    };
+
+    CoffeeCodeGenerator.prototype.mark = function() {
+      return this.prevIndent = this.indent;
+    };
+
+    CoffeeCodeGenerator.prototype.calcCodeIndent = function() {
+      if ((this.prevCodeIndent != null) && this.prevIndent > this.prevCodeIndent) {
+        return HamlRuntime.indentText(this.prevIndent - this.prevCodeIndent);
+      } else {
+        return '';
+      }
+    };
+
+    /*
+        Append the text contents to the buffer (interpolating embedded code not required for coffeescript)
+    */
+
+    CoffeeCodeGenerator.prototype.appendTextContents = function(text, shouldInterpolate, currentParsePoint, options) {
+      var prefix, suffix;
+      if (shouldInterpolate && text.match(/#{[^}]*}/)) {
+        this.outputBuffer.flush();
+        prefix = suffix = '';
+        if (options != null ? options.escapeHTML : void 0) {
+          prefix = 'haml.HamlRuntime.escapeHTML(';
+          suffix = ')';
+        } else if (options != null ? options.perserveWhitespace : void 0) {
+          prefix = 'haml.HamlRuntime.perserveWhitespace(';
+          suffix = ')';
+        }
+        return this.outputBuffer.appendToOutputBuffer(this.calcCodeIndent() + 'html.push(' + prefix + '"' + this.escapeCode(text) + '"' + suffix + ')\n');
+      } else {
+        if (options != null ? options.escapeHTML : void 0) {
+          text = haml.HamlRuntime.escapeHTML(text);
+        }
+        if (options != null ? options.perserveWhitespace : void 0) {
+          text = haml.HamlRuntime.perserveWhitespace(text);
+        }
+        return this.outputBuffer.append(text);
+      }
+    };
+
+    return CoffeeCodeGenerator;
+
+  })(CodeGenerator);
+
+  /*
+    HAML filters are functions that take 3 parameters
+      contents: The contents block for the filter an array of lines of text
+      generator: The current generator for the compiled function
+      indentText: A whitespace string specifying the current indent level
+      currentParsePoint: line and character counters for the current parse point in the input buffer
+  */
+
+  filters = {
+    /*
+        Plain filter, just renders the text in the block
+    */
+    plain: function(contents, generator, indentText, currentParsePoint) {
+      var line, _i, _len;
+      for (_i = 0, _len = contents.length; _i < _len; _i++) {
+        line = contents[_i];
+        generator.appendTextContents(indentText + line + '\n', true, currentParsePoint);
+      }
+      return true;
+    },
+    /*
+        Wraps the filter block in a javascript tag
+    */
+    javascript: function(contents, generator, indentText, currentParsePoint) {
+      var line, _i, _len;
+      generator.outputBuffer.append(indentText + "<script type=\"text/javascript\">\n");
+      generator.outputBuffer.append(indentText + "//<![CDATA[\n");
+      for (_i = 0, _len = contents.length; _i < _len; _i++) {
+        line = contents[_i];
+        generator.appendTextContents(indentText + line + '\n', true, currentParsePoint);
+      }
+      generator.outputBuffer.append(indentText + "//]]>\n");
+      return generator.outputBuffer.append(indentText + "</script>\n");
+    },
+    /*
+        Wraps the filter block in a style tag
+    */
+    css: function(contents, generator, indentText, currentParsePoint) {
+      var line, _i, _len;
+      generator.outputBuffer.append(indentText + "<style type=\"text/css\">\n");
+      generator.outputBuffer.append(indentText + "/*<![CDATA[*/\n");
+      for (_i = 0, _len = contents.length; _i < _len; _i++) {
+        line = contents[_i];
+        generator.appendTextContents(indentText + line + '\n', true, currentParsePoint);
+      }
+      generator.outputBuffer.append(indentText + "/*]]>*/\n");
+      return generator.outputBuffer.append(indentText + "</style>\n");
+    },
+    /*
+        Wraps the filter block in a CDATA tag
+    */
+    cdata: function(contents, generator, indentText, currentParsePoint) {
+      var line, _i, _len;
+      generator.outputBuffer.append(indentText + "<![CDATA[\n");
+      for (_i = 0, _len = contents.length; _i < _len; _i++) {
+        line = contents[_i];
+        generator.appendTextContents(indentText + line + '\n', true, currentParsePoint);
+      }
+      return generator.outputBuffer.append(indentText + "]]>\n");
+    },
+    /*
+        Preserve filter, preserved blocks of text aren't indented, and newlines are replaced with the HTML escape code for newlines
+    */
+    preserve: function(contents, generator, indentText, currentParsePoint) {
+      return generator.appendTextContents(contents.join('\n') + '\n', true, currentParsePoint, {
+        perserveWhitespace: true
+      });
+    },
+    /*
+        Escape filter, renders the text in the block with html escaped
+    */
+    escape: function(contents, generator, indentText, currentParsePoint) {
+      var line, _i, _len;
+      for (_i = 0, _len = contents.length; _i < _len; _i++) {
+        line = contents[_i];
+        generator.appendTextContents(indentText + line + '\n', true, currentParsePoint, {
+          escapeHTML: true
+        });
+      }
+      return true;
+    }
+  };
+
+  /*
+    Main haml compiler implemtation
+  */
+
+  root.haml = {
+    /*
+        Compiles the haml provided in the parameters to a Javascipt function
+    
+        Parameter:
+          String: Looks for a haml template in dom with this ID
+          Option Hash: The following options determines how haml sources and compiles the template
+            source - This contains the template in string form
+            sourceId - This contains the element ID in the dom which contains the haml source
+            sourceUrl - This contains the URL where the template can be fetched from
+            outputFormat - This determines what is returned, and has the following values:
+                             string - The javascript source code
+                             function - A javascript function (default)
+            generator - Which code generator to use
+                             javascript (default)
+                             coffeescript
+    
+        Returns a javascript function
+    */
+    compileHaml: function(options) {
+      var codeGenerator, result, tokinser;
+      if (typeof options === 'string') {
+        return this._compileHamlTemplate(options, new haml.JsCodeGenerator());
+      } else {
+        if (options.generator !== 'coffeescript') {
+          codeGenerator = new haml.JsCodeGenerator();
+        } else {
+          codeGenerator = new haml.CoffeeCodeGenerator();
+        }
+        if (options.source != null) {
+          tokinser = new haml.Tokeniser({
+            template: options.source
+          });
+        } else if (options.sourceId != null) {
+          tokinser = new haml.Tokeniser({
+            templateId: options.sourceId
+          });
+        } else if (options.sourceUrl != null) {
+          tokinser = new haml.Tokeniser({
+            templateUrl: options.sourceUrl
+          });
+        } else {
+          throw "No template source specified for compileHaml. You need to provide a source, sourceId or sourceUrl option";
+        }
+        result = this._compileHamlToJs(tokinser, codeGenerator);
+        if (options.outputFormat !== 'string') {
+          return codeGenerator.generateJsFunction(result);
+        } else {
+          return "function (context) {\n" + result + "}\n";
+        }
+      }
+    },
+    /*
+        Compiles the haml in the script block with ID templateId using the coffeescript generator
+        Returns a javascript function
+    */
+    compileCoffeeHaml: function(templateId) {
+      return this._compileHamlTemplate(templateId, new haml.CoffeeCodeGenerator());
+    },
+    /*
+        Compiles the haml in the passed in string
+        Returns a javascript function
+    */
+    compileStringToJs: function(string) {
+      var codeGenerator, result;
+      codeGenerator = new haml.JsCodeGenerator();
+      result = this._compileHamlToJs(new haml.Tokeniser({
+        template: string
+      }), codeGenerator);
+      return codeGenerator.generateJsFunction(result);
+    },
+    /*
+        Compiles the haml in the passed in string
+        Returns a javascript function
+    */
+    compileCoffeescriptStringToJs: function(string) {
+      var codeGenerator, result;
+      codeGenerator = new haml.CoffeeCodeGenerator();
+      result = this._compileHamlToJs(new haml.Tokeniser({
+        template: string
+      }), codeGenerator);
+      return codeGenerator.generateJsFunction(result);
+    },
+    /*
+        Compiles the haml in the passed in string using the coffeescript generator
+        Returns a javascript function
+    */
+    compileCoffeeHamlFromString: function(string) {
+      var codeGenerator, result;
+      codeGenerator = new haml.CoffeeCodeGenerator();
+      result = this._compileHamlToJs(new haml.Tokeniser({
+        template: string
+      }), codeGenerator);
+      return codeGenerator.generateJsFunction(result);
+    },
+    /*
+        Compiles the haml in the passed in string
+        Returns the javascript function source
+    
+        This is mainly used for precompiling the haml templates so they can be packaged.
+    */
+    compileHamlToJsString: function(string) {
+      var result;
+      result = 'function (context) {\n';
+      result += this._compileHamlToJs(new haml.Tokeniser({
+        template: string
+      }), new haml.JsCodeGenerator());
+      return result += '}\n';
+    },
+    _compileHamlTemplate: function(templateId, codeGenerator) {
+      var fn, result;
+      haml.cache || (haml.cache = {});
+      if (haml.cache[templateId]) return haml.cache[templateId];
+      result = this._compileHamlToJs(new haml.Tokeniser({
+        templateId: templateId
+      }), codeGenerator);
+      fn = codeGenerator.generateJsFunction(result);
+      haml.cache[templateId] = fn;
+      return fn;
+    },
+    _compileHamlToJs: function(tokeniser, generator) {
+      var elementStack, indent;
+      elementStack = [];
+      generator.initOutput();
+      tokeniser.getNextToken();
+      while (!tokeniser.token.eof) {
+        if (!tokeniser.token.eol) {
+          indent = haml._whitespace(tokeniser);
+          generator.setIndent(indent);
+          if (tokeniser.token.eol) {
+            generator.outputBuffer.append(HamlRuntime.indentText(indent) + '\n');
+          } else if (tokeniser.token.doctype) {
+            haml._doctype(tokeniser, indent, generator);
+          } else if (tokeniser.token.exclamation) {
+            haml._ignoredLine(tokeniser, indent, elementStack, generator);
+          } else if (tokeniser.token.equal || tokeniser.token.escapeHtml || tokeniser.token.unescapeHtml || tokeniser.token.tilde) {
+            haml._embeddedJs(tokeniser, indent, elementStack, {
+              innerWhitespace: true
+            }, generator);
+          } else if (tokeniser.token.minus) {
+            haml._jsLine(tokeniser, indent, elementStack, generator);
+          } else if (tokeniser.token.comment || tokeniser.token.slash) {
+            haml._commentLine(tokeniser, indent, elementStack, generator);
+          } else if (tokeniser.token.amp) {
+            haml._escapedLine(tokeniser, indent, elementStack, generator);
+          } else if (tokeniser.token.filter) {
+            haml._filter(tokeniser, indent, generator);
+          } else {
+            haml._templateLine(tokeniser, elementStack, indent, generator);
+          }
+        } else {
+          tokeniser.getNextToken();
+        }
+      }
+      haml._closeElements(0, elementStack, tokeniser, generator);
+      return generator.closeAndReturnOutput();
+    },
+    _doctype: function(tokeniser, indent, generator) {
+      var contents, params;
+      if (tokeniser.token.doctype) {
+        generator.outputBuffer.append(HamlRuntime.indentText(indent));
+        tokeniser.getNextToken();
+        contents = tokeniser.skipToEOLorEOF();
+        if (contents && contents.length > 0) {
+          params = contents.split(/\s+/);
+          switch (params[0]) {
+            case 'XML':
+              if (params.length > 1) {
+                generator.outputBuffer.append("<?xml version='1.0' encoding='" + params[1] + "' ?>");
+              } else {
+                generator.outputBuffer.append("<?xml version='1.0' encoding='utf-8' ?>");
+              }
+              break;
+            case 'Strict':
+              generator.outputBuffer.append('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">');
+              break;
+            case 'Frameset':
+              generator.outputBuffer.append('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Frameset//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd">');
+              break;
+            case '5':
+              generator.outputBuffer.append('<!DOCTYPE html>');
+              break;
+            case '1.1':
+              generator.outputBuffer.append('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">');
+              break;
+            case 'Basic':
+              generator.outputBuffer.append('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML Basic 1.1//EN" "http://www.w3.org/TR/xhtml-basic/xhtml-basic11.dtd">');
+              break;
+            case 'Mobile':
+              generator.outputBuffer.append('<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.2//EN" "http://www.openmobilealliance.org/tech/DTD/xhtml-mobile12.dtd">');
+              break;
+            case 'RDFa':
+              generator.outputBuffer.append('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML+RDFa 1.0//EN" "http://www.w3.org/MarkUp/DTD/xhtml-rdfa-1.dtd">');
+          }
+        } else {
+          generator.outputBuffer.append('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">');
+        }
+        return generator.outputBuffer.append("\n");
+      }
+    },
+    _filter: function(tokeniser, indent, generator) {
+      var filter, filterBlock, i, line;
+      if (tokeniser.token.filter) {
+        filter = tokeniser.token.tokenString;
+        if (!haml.filters[filter]) {
+          throw tokeniser.parseError("Filter '" + filter + "' not registered. Filter functions need to be added to 'haml.filters'.");
+        }
+        tokeniser.skipToEOLorEOF();
+        tokeniser.getNextToken();
+        i = haml._whitespace(tokeniser);
+        filterBlock = [];
+        while (!tokeniser.token.eof && i > indent) {
+          tokeniser.pushBackToken();
+          line = tokeniser.skipToEOLorEOF();
+          filterBlock.push(haml.HamlRuntime.indentText(i - indent - 1) + line);
+          tokeniser.getNextToken();
+          i = haml._whitespace(tokeniser);
+        }
+        haml.filters[filter](filterBlock, generator, haml.HamlRuntime.indentText(indent), tokeniser.currentParsePoint());
+        return tokeniser.pushBackToken();
+      }
+    },
+    _commentLine: function(tokeniser, indent, elementStack, generator) {
+      var contents, i;
+      if (tokeniser.token.comment) {
+        tokeniser.skipToEOLorEOF();
+        tokeniser.getNextToken();
+        i = haml._whitespace(tokeniser);
+        while (!tokeniser.token.eof && i > indent) {
+          tokeniser.skipToEOLorEOF();
+          tokeniser.getNextToken();
+          i = haml._whitespace(tokeniser);
+        }
+        return tokeniser.pushBackToken();
+      } else if (tokeniser.token.slash) {
+        haml._closeElements(indent, elementStack, tokeniser, generator);
+        generator.outputBuffer.append(HamlRuntime.indentText(indent));
+        generator.outputBuffer.append("<!--");
+        contents = tokeniser.skipToEOLorEOF();
+        if (contents && contents.length > 0) {
+          generator.outputBuffer.append(contents);
+        }
+        if (contents && _(contents).startsWith('[') && contents.match(/\]\s*$/)) {
+          elementStack[indent] = {
+            htmlConditionalComment: true
+          };
+          generator.outputBuffer.append(">");
+        } else {
+          elementStack[indent] = {
+            htmlComment: true
+          };
+        }
+        if (haml._tagHasContents(indent, tokeniser)) {
+          return generator.outputBuffer.append("\n");
+        }
+      }
+    },
+    _escapedLine: function(tokeniser, indent, elementStack, generator) {
+      var contents;
+      if (tokeniser.token.amp) {
+        haml._closeElements(indent, elementStack, tokeniser, generator);
+        generator.outputBuffer.append(HamlRuntime.indentText(indent));
+        contents = tokeniser.skipToEOLorEOF();
+        if (contents && contents.length > 0) {
+          generator.outputBuffer.append(haml.HamlRuntime.escapeHTML(contents));
+        }
+        return generator.outputBuffer.append("\n");
+      }
+    },
+    _ignoredLine: function(tokeniser, indent, elementStack, generator) {
+      var contents;
+      if (tokeniser.token.exclamation) {
+        tokeniser.getNextToken();
+        if (tokeniser.token.ws) indent += haml._whitespace(tokeniser);
+        tokeniser.pushBackToken();
+        haml._closeElements(indent, elementStack, tokeniser, generator);
+        contents = tokeniser.skipToEOLorEOF();
+        return generator.outputBuffer.append(HamlRuntime.indentText(indent) + contents + '\n');
+      }
+    },
+    _embeddedJs: function(tokeniser, indent, elementStack, tagOptions, generator) {
+      var currentParsePoint, escapeHtml, expression, indentText, perserveWhitespace;
+      if (elementStack) {
+        haml._closeElements(indent, elementStack, tokeniser, generator);
+      }
+      if (tokeniser.token.equal || tokeniser.token.escapeHtml || tokeniser.token.unescapeHtml || tokeniser.token.tilde) {
+        escapeHtml = tokeniser.token.escapeHtml || tokeniser.token.equal;
+        perserveWhitespace = tokeniser.token.tilde;
+        currentParsePoint = tokeniser.currentParsePoint();
+        expression = tokeniser.skipToEOLorEOF();
+        indentText = HamlRuntime.indentText(indent);
+        if (!tagOptions || tagOptions.innerWhitespace) {
+          generator.outputBuffer.append(indentText);
+        }
+        generator.appendEmbeddedCode(indentText, expression, escapeHtml, perserveWhitespace, currentParsePoint);
+        if (!tagOptions || tagOptions.innerWhitespace) {
+          return generator.outputBuffer.append("\n");
+        }
+      }
+    },
+    _jsLine: function(tokeniser, indent, elementStack, generator) {
+      var line;
+      if (tokeniser.token.minus) {
+        haml._closeElements(indent, elementStack, tokeniser, generator);
+        line = tokeniser.skipToEOLorEOF();
+        generator.setIndent(indent);
+        generator.appendCodeLine(line);
+        if (generator.lineMatchesStartFunctionBlock(line)) {
+          return elementStack[indent] = {
+            fnBlock: true
+          };
+        } else if (generator.lineMatchesStartBlock(line)) {
+          return elementStack[indent] = {
+            block: true
+          };
+        }
+      }
+    },
+    _templateLine: function(tokeniser, elementStack, indent, generator) {
+      var attrList, attributesHash, classes, contents, currentParsePoint, hasContents, id, identifier, indentText, lineHasElement, objectRef, shouldInterpolate, tagOptions;
+      if (!tokeniser.token.eol) {
+        haml._closeElements(indent, elementStack, tokeniser, generator);
+      }
+      identifier = haml._element(tokeniser);
+      id = haml._idSelector(tokeniser);
+      classes = haml._classSelector(tokeniser);
+      objectRef = haml._objectReference(tokeniser);
+      attrList = haml._attributeList(tokeniser);
+      currentParsePoint = tokeniser.currentParsePoint();
+      attributesHash = haml._attributeHash(tokeniser);
+      tagOptions = {
+        selfClosingTag: false,
+        innerWhitespace: true,
+        outerWhitespace: true
+      };
+      lineHasElement = haml._lineHasElement(identifier, id, classes);
+      if (tokeniser.token.slash) {
+        tagOptions.selfClosingTag = true;
+        tokeniser.getNextToken();
+      }
+      if (tokeniser.token.gt && lineHasElement) {
+        tagOptions.outerWhitespace = false;
+        tokeniser.getNextToken();
+      }
+      if (tokeniser.token.lt && lineHasElement) {
+        tagOptions.innerWhitespace = false;
+        tokeniser.getNextToken();
+      }
+      if (lineHasElement) {
+        if (!tagOptions.selfClosingTag) {
+          tagOptions.selfClosingTag = haml._isSelfClosingTag(identifier) && !haml._tagHasContents(indent, tokeniser);
+        }
+        haml._openElement(currentParsePoint, indent, identifier, id, classes, objectRef, attrList, attributesHash, elementStack, tagOptions, generator);
+      } else if (!tokeniser.isEolOrEof() && !tokeniser.token.ws) {
+        tokeniser.pushBackToken();
+      }
+      hasContents = false;
+      if (tokeniser.token.ws) tokeniser.getNextToken();
+      if (tokeniser.token.equal || tokeniser.token.escapeHtml || tokeniser.token.unescapeHtml) {
+        haml._embeddedJs(tokeniser, indent + 1, null, tagOptions, generator);
+        hasContents = true;
+      } else {
+        contents = '';
+        shouldInterpolate = false;
+        if (tokeniser.token.exclamation) {
+          contents = tokeniser.skipToEOLorEOF();
+        } else if (!tokeniser.token.eol) {
+          tokeniser.pushBackToken();
+          contents = tokeniser.skipToEOLorEOF();
+          if (contents.match(/^\\%/)) contents = contents.substring(1);
+          shouldInterpolate = true;
+        }
+        hasContents = contents.length > 0;
+        if (hasContents) {
+          if (tagOptions.innerWhitespace && lineHasElement || (!lineHasElement && haml._parentInnerWhitespace(elementStack, indent))) {
+            indentText = HamlRuntime.indentText(identifier.length > 0 ? indent + 1 : indent);
+          } else {
+            indentText = '';
+            contents = _(contents).trim();
+          }
+          generator.appendTextContents(indentText + contents + '\n', shouldInterpolate, currentParsePoint);
+        }
+      }
+      haml._eolOrEof(tokeniser);
+      if (tagOptions.selfClosingTag && hasContents) {
+        throw haml.HamlRuntime.templateError(currentParsePoint.lineNumber, currentParsePoint.characterNumber, currentParsePoint.currentLine, "A self-closing tag can not have any contents");
+      }
+    },
+    _attributeHash: function(tokeniser) {
+      var attr;
+      attr = '';
+      if (tokeniser.token.attributeHash) {
+        attr = tokeniser.token.tokenString;
+        tokeniser.getNextToken();
+      }
+      return attr;
+    },
+    _objectReference: function(tokeniser) {
+      var attr;
+      attr = '';
+      if (tokeniser.token.objectReference) {
+        attr = tokeniser.token.tokenString;
+        tokeniser.getNextToken();
+      }
+      return attr;
+    },
+    _attributeList: function(tokeniser) {
+      var attr, attrList;
+      attrList = {};
+      if (tokeniser.token.openBracket) {
+        tokeniser.getNextToken();
+        while (!tokeniser.token.closeBracket) {
+          attr = haml._attribute(tokeniser);
+          if (attr) {
+            attrList[attr.name] = attr.value;
+          } else {
+            tokeniser.getNextToken();
+          }
+          if (tokeniser.token.ws || tokeniser.token.eol) {
+            tokeniser.getNextToken();
+          } else if (!tokeniser.token.closeBracket && !tokeniser.token.identifier) {
+            throw tokeniser.parseError("Expecting either an attribute name to continue the attibutes or a closing " + "bracket to end");
+          }
+        }
+        tokeniser.getNextToken();
+      }
+      return attrList;
+    },
+    _attribute: function(tokeniser) {
+      var attr, name;
+      attr = null;
+      if (tokeniser.token.identifier) {
+        name = tokeniser.token.tokenString;
+        tokeniser.getNextToken();
+        haml._whitespace(tokeniser);
+        if (!tokeniser.token.equal) {
+          throw tokeniser.parseError("Expected '=' after attribute name");
+        }
+        tokeniser.getNextToken();
+        haml._whitespace(tokeniser);
+        if (!tokeniser.token.string && !tokeniser.token.identifier) {
+          throw tokeniser.parseError("Expected a quoted string or an identifier for the attribute value");
+        }
+        attr = {
+          name: name,
+          value: tokeniser.token.tokenString
+        };
+        tokeniser.getNextToken();
+      }
+      return attr;
+    },
+    _closeElement: function(indent, elementStack, tokeniser, generator) {
+      var innerWhitespace, outerWhitespace;
+      if (elementStack[indent]) {
+        generator.setIndent(indent);
+        if (elementStack[indent].htmlComment) {
+          generator.outputBuffer.append(HamlRuntime.indentText(indent) + '-->\n');
+        } else if (elementStack[indent].htmlConditionalComment) {
+          generator.outputBuffer.append(HamlRuntime.indentText(indent) + '<![endif]-->\n');
+        } else if (elementStack[indent].block) {
+          generator.closeOffCodeBlock(tokeniser);
+        } else if (elementStack[indent].fnBlock) {
+          generator.closeOffFunctionBlock(tokeniser);
+        } else {
+          innerWhitespace = !elementStack[indent].tagOptions || elementStack[indent].tagOptions.innerWhitespace;
+          if (innerWhitespace) {
+            generator.outputBuffer.append(HamlRuntime.indentText(indent));
+          } else {
+            generator.outputBuffer.trimWhitespace();
+          }
+          generator.outputBuffer.append('</' + elementStack[indent].tag + '>');
+          outerWhitespace = !elementStack[indent].tagOptions || elementStack[indent].tagOptions.outerWhitespace;
+          if (haml._parentInnerWhitespace(elementStack, indent) && outerWhitespace) {
+            generator.outputBuffer.append('\n');
+          }
+        }
+        elementStack[indent] = null;
+        return generator.mark();
+      }
+    },
+    _closeElements: function(indent, elementStack, tokeniser, generator) {
+      var i, _results;
+      i = elementStack.length - 1;
+      _results = [];
+      while (i >= indent) {
+        _results.push(haml._closeElement(i--, elementStack, tokeniser, generator));
+      }
+      return _results;
+    },
+    _openElement: function(currentParsePoint, indent, identifier, id, classes, objectRef, attributeList, attributeHash, elementStack, tagOptions, generator) {
+      var element, parentInnerWhitespace, tagOuterWhitespace;
+      element = identifier.length === 0 ? "div" : identifier;
+      parentInnerWhitespace = haml._parentInnerWhitespace(elementStack, indent);
+      tagOuterWhitespace = !tagOptions || tagOptions.outerWhitespace;
+      if (!tagOuterWhitespace) generator.outputBuffer.trimWhitespace();
+      if (indent > 0 && parentInnerWhitespace && tagOuterWhitespace) {
+        generator.outputBuffer.append(HamlRuntime.indentText(indent));
+      }
+      generator.outputBuffer.append('<' + element);
+      if (attributeHash.length > 0 || objectRef.length > 0) {
+        generator.generateCodeForDynamicAttributes(id, classes, attributeList, attributeHash, objectRef, currentParsePoint);
+      } else {
+        generator.outputBuffer.append(haml.HamlRuntime.generateElementAttributes(null, id, classes, null, attributeList, null, currentParsePoint.lineNumber, currentParsePoint.characterNumber, currentParsePoint.currentLine));
+      }
+      if (tagOptions.selfClosingTag) {
+        generator.outputBuffer.append("/>");
+        if (tagOptions.outerWhitespace) return generator.outputBuffer.append("\n");
+      } else {
+        generator.outputBuffer.append(">");
+        elementStack[indent] = {
+          tag: element,
+          tagOptions: tagOptions
+        };
+        if (tagOptions.innerWhitespace) return generator.outputBuffer.append("\n");
+      }
+    },
+    _isSelfClosingTag: function(tag) {
+      return tag === 'meta' || tag === 'img' || tag === 'link' || tag === 'script' || tag === 'br' || tag === 'hr';
+    },
+    _tagHasContents: function(indent, tokeniser) {
+      var nextToken;
+      if (!tokeniser.isEolOrEof()) {
+        return true;
+      } else {
+        nextToken = tokeniser.lookAhead(1);
+        return nextToken.ws && nextToken.tokenString.length / 2 > indent;
+      }
+    },
+    _parentInnerWhitespace: function(elementStack, indent) {
+      return indent === 0 || (!elementStack[indent - 1] || !elementStack[indent - 1].tagOptions || elementStack[indent - 1].tagOptions.innerWhitespace);
+    },
+    _lineHasElement: function(identifier, id, classes) {
+      return identifier.length > 0 || id.length > 0 || classes.length > 0;
+    },
+    hasValue: function(value) {
+      return (value != null) && value !== false;
+    },
+    attrValue: function(attr, value) {
+      if (attr === 'selected' || attr === 'checked' || attr === 'disabled') {
+        return attr;
+      } else {
+        return value;
+      }
+    },
+    _whitespace: function(tokeniser) {
+      var indent;
+      indent = 0;
+      if (tokeniser.token.ws) {
+        indent = tokeniser.token.tokenString.length / 2;
+        tokeniser.getNextToken();
+      }
+      return indent;
+    },
+    _element: function(tokeniser) {
+      var identifier;
+      identifier = '';
+      if (tokeniser.token.element) {
+        identifier = tokeniser.token.tokenString;
+        tokeniser.getNextToken();
+      }
+      return identifier;
+    },
+    _eolOrEof: function(tokeniser) {
+      if (tokeniser.token.eol || tokeniser.token.continueLine) {
+        return tokeniser.getNextToken();
+      } else if (!tokeniser.token.eof) {
+        throw tokeniser.parseError("Expected EOL or EOF");
+      }
+    },
+    _idSelector: function(tokeniser) {
+      var id;
+      id = '';
+      if (tokeniser.token.idSelector) {
+        id = tokeniser.token.tokenString;
+        tokeniser.getNextToken();
+      }
+      return id;
+    },
+    _classSelector: function(tokeniser) {
+      var classes;
+      classes = [];
+      while (tokeniser.token.classSelector) {
+        classes.push(tokeniser.token.tokenString);
+        tokeniser.getNextToken();
+      }
+      return classes;
+    }
+  };
+
+  root.haml.Tokeniser = Tokeniser;
+
+  root.haml.Buffer = Buffer;
+
+  root.haml.JsCodeGenerator = JsCodeGenerator;
+
+  root.haml.CoffeeCodeGenerator = CoffeeCodeGenerator;
+
+  root.haml.HamlRuntime = HamlRuntime;
+
+  root.haml.filters = filters;
+
+}).call(this);
