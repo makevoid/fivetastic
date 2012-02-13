@@ -4,6 +4,12 @@
 
 http://fivetastic.org
 
+### VERY IMPORTANT TODO:
+
+    textmate2 integration to edit files 
+    (move editor part (codemirror) into a plugin)
+    link to open in textmate remotely (insanely powerful but not really used feature!! yet!!!!!)
+
 ### Intro:
 
 To start your own site/app with FiveTastic:
@@ -150,7 +156,11 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 ### TODO:
 
 - handle 404s
+- seo 
 
+easiest solution, reimplement it in ruby, host it with fiveapi.com to maximize results (this way should be fucking easy)!!!
+
+- update codemirror
 - support pushstate in IE8 trough https://github.com/balupton/history.js
 
 - specs
@@ -161,6 +171,34 @@ jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 - markdown support
 - rake task to generate RapidWeaver Template
 - update vendored files
+
+public api
+--
+
+    STDL
+      resource = "articles"
+  
+      load(resource)
+  
+      load(resource)
+        spinner("on")
+        request ->
+          spinner("off")
+    
+      with: extension
+      
+      load(resource, { transition: "fade" })
+      
+    
+      
+    -- options
+      transition: transition
+      
+      transitions: ["in", "out"], ["fade", ["slide", "direction"], "explode?", "text blur"]
+
+    
+  
+  
 
 
 ## Contributing:
