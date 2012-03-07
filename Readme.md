@@ -9,6 +9,12 @@ http://fivetastic.org
     textmate2 integration to edit files 
     (move editor part (codemirror) into a plugin)
     link to open in textmate remotely (insanely powerful but not really used feature!! yet!!!!!)
+	txmt://open/?url=file://root@new.makevoid.com/.bash_profile&line=11&column=2
+
+doesn't do the job very well
+
+	commandline fiveapi edit that calls 
+	ssh root@new.makevoid.com rmate /www/antani
 
 ### Intro:
 

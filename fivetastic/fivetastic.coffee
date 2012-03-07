@@ -113,15 +113,13 @@ class FiveTastic
     exports.render sass
     
   haml: (html, vars={}) ->
-    # TODO: throw an exception to be catched
-    #
-    # try
+    try
     # haml.compileStringToJs(html)(vars)
     # haml.compileHaml({ source: html, generator: "coffeescript" })(vars)
-    haml.compileHaml({ source: html })(vars)
+      haml.compileHaml({ source: html })(vars)
     # haml.compileCoffeeHamlFromString(html)(vars)
-    # catch error
-    #       console.log error
+    catch error
+      console.log "Haml error:", error, error.message, { source: html, object: vars }
   
   assign: (page, html) ->
     page.html = html
