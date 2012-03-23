@@ -119,8 +119,9 @@ class FiveTastic
       haml.compileHaml({ source: html })(vars)
     # haml.compileCoffeeHamlFromString(html)(vars)
     catch error
-      console.log "Haml error:", error, error.message, { source: html, object: vars }
-  
+      console.log "[Haml] Error:", error, error.message, { source: html, object: vars }
+      console.log "Advice: There should be at least one haml element, try to put only something like '%p test' in your view."
+      
   assign: (page, html) ->
     page.html = html
     if page.name == "layout"
