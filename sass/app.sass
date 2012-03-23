@@ -1,0 +1,75 @@
+// TODO: add variables into mixins on sass-js 
++gradient(!start, !end)
+  background-image: -webkit-linear-gradient(!start, !end)
+  background: !start
+
+// this is your main css file, loaded after reset.sass feel free to delete everything and write your own styles
+
+!text_color2 = #FFF
+
++rounded
+  border-radius: 10px
+  -webkit-border-radius: 10px
+  -moz-border-radius: 10px
+
+body
+  background: #eaeaea
+  font-family: Georgia, Helvetica, Arial, Verdana
+  
+button
+  padding: 5px 10px
+  
+body
+  color: #111
+  +gradient(#FFF, #888)
+  
+#container
+  margin: 20px auto
+  width: 92%
+  
+nav
+  margin: 8px 0 30px
+  a
+    margin: 0 10px 0 0
+    color: !text_color2
+    padding: 4px 10px
+    +rounded
+  a:hover  
+    color: #ddd
+    
+ul
+  margin: 10px 0 20px
+  li
+   margin: 3px 0 5px
+   font-weight: bold
+  
+h2
+  margin: 0 0 10px 0
+  
+p
+  margin: 3px 0 5px
+  
+  
+.box
+  color: !text_color2
+  padding: 2px 9px
+  margin: 0 0 15px 0
+  +rounded
+
+ul span
+  color: #333
+  font-size: 0.9em
+  font-weight: normal
+
+.themes
+  float: right
+  text-align: center
+  background: #DDD
+  padding: 8px
+  margin: 35px 0 0 0
+  +rounded
+  .red 
+    background: #F00
+  .blue
+    background: #00F
+  

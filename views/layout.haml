@@ -1,0 +1,30 @@
+-# contents in #head and #body will be appended to head and body tags in index.html, same thing for #title
+%div
+  #head
+    #title FiveTastic
+    %link{ type: "text/sass", href: "/sass/reset.sass" }
+    %link{ type: "text/sass", href: "/sass/app.sass" }
+    %link{ type: "text/sass", href: "/sass/theme_red.sass", id: "theme" }
+  #body
+    #container
+      %header
+        .themes
+          %p sass stylesheets:
+          %button.red
+          %button.blue
+          
+        %h1 
+          %a{ href: "/" } FiveTastic
+          
+        %nav
+          %a{ href: "/" } Home
+          %a{ href: "/page1" } Page 1
+          %a{ href: "/page2" } Page 2
+          %a{ href: "/pages/3" } Page 3
+      .clear
+          
+      #content
+        != yield
+  
+      %footer
+      
