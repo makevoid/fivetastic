@@ -50,11 +50,11 @@ class FiveTastic
     # debug 
     # $("body").css "color", "#000"
     
-    # console.log @page
     page = if @page.format == "haml"
       this.haml @page.html
     else
       @page.html
+      
     # TODO: insert other rendering format here (like markdown)
     html = this.haml @layout.html, {yield: page}
     
@@ -468,9 +468,9 @@ class FiveTastic
     handle_type: ->
       type = this.path_type()
       if @name == "layout.haml"
-        fivetastic.layout = @code
+        fivetastic.layout = { name: "layout", full_name: "layout.haml", html: @code, format: "haml" }
       else if type == "haml"
-        fivetastic.page = @code
+        fivetastic.page = { name: @name.split(".")[0], full_name: @name, html: @code, format: "haml" }
       else if type == "sass" 
         console.log "TODO: implement me!"
       else if type == "coffee"
@@ -484,7 +484,6 @@ class FiveTastic
     show: (path) ->  
       @path = path
       @name = _(@path.split("/")).last()
-
       content = localStorage["#{@name}_content"]
       if content
         @code = content
