@@ -41,11 +41,11 @@ for the default page:
 
 Routes are defined in routes.json as a JSON hash.
 
-{
-  "/":            "index",    # this maps the root url to a page named index
-  "/page":        "page",     # standard mapping
-  "/category/*":  "category"  # star route, maps all urls starting with '/category/'
-}
+    {
+      "/":            "index",    # this maps the root url to a page named index
+      "/page":        "page",     # standard mapping
+      "/category/*":  "category"  # star route, maps all urls starting with '/category/'
+    }
 
 
 ### Libraries:
