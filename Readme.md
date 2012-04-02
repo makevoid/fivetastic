@@ -9,7 +9,7 @@ http://fivetastic.org
 To start your own site/app with FiveTastic:
 
 - fork/download fivetastic (forking is good so you can update to the latest version fairly easily)
-   
+
 
 type this in the fivetastic folder:
 
@@ -58,10 +58,10 @@ for the default page:
 
 basic routes support is done, see routes.json
 
-TODO: Routing system to be defined.... 
+TODO: Routing system to be defined....
 
 need support:
-- ../* (star) routes 
+- ../* (star) routes
 - seo requests (ruby-rack/php/static fallback)
 
 
@@ -106,7 +106,7 @@ To make a fivetastic app and develop it easily online:
 - make sure github integration is activated
 - choose the project from the list and clone it
 - open the project
-- in the shell/cli at the bottom of the editor type: 
+- in the shell/cli at the bottom of the editor type:
 
 >
 
@@ -125,7 +125,7 @@ enjoy!
 
 ### default folders and files:
 
-    / 
+    /
     /assets/
       app.css
       app.js
@@ -147,20 +147,20 @@ haml: https://github.com/uglyog/clientside-haml-js/tree/master/lib
 jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 
+### Seo support
+
+Use a proxy that matches the user agent and redirects the request to another server that has your content and builds a landing page, this will be a feature of fiveapi.com
+
+
 ### TODO:
 
-- handle 404s
-- seo 
+- specs + rewrite using better modularity (in progress..)
 
-easiest solution, reimplement it in ruby, host it with fiveapi.com to maximize results (this way should be fucking easy)!!!
+- handle 404s
 
 - update codemirror
 - support pushstate in IE8 trough https://github.com/balupton/history.js
 
-- specs
-- rewrite using better modularity
-
-- editing preview
 - full router support
 - markdown support
 - rake task to generate RapidWeaver Template
@@ -171,34 +171,34 @@ public api
 
     STDL
       resource = "articles"
-  
+
       load(resource)
-  
+
       load(resource)
         spinner("on")
         request ->
           spinner("off")
-    
+
       with: extension
-      
+
       load(resource, { transition: "fade" })
-      
-    
-      
+
+
+
     -- options
       transition: transition
-      
+
       transitions: ["in", "out"], ["fade", ["slide", "direction"], "explode?", "text blur"]
 
-    
-  
-  
+
+
+
 
 
 ## Contributing:
 
 - fork the project, make changes
-- run tests in your browser (see specs section below) 
+- run tests in your browser (see specs section below)
 - send me a pull request
 
 
@@ -210,27 +210,16 @@ if you make changes to javascript files, run:
 
 to update vendor/all.js that contains all vendored libs and init.js, all in one file
 (for coffee files is not needed because they're compiled clientside)
-  
-  
-### run specs:
-
-the specs are made with Jasmine and Coffeescript, and are contained in the following file:
-
-    /fivetastic/spec/fivetastic_spec.coffee
 
 
-go to this url to run them:
-
-    http://localhost:3000/fivetastic/spec/all.html
-
-NEW:
+### Specs:
 
 ### setup test environment:
 
 FiveTastic uses jasmine-headless-webkit ruby gem to run specs, more infos here: http://johnbintz.github.com/jasmine-headless-webkit/
 
 Basically you have to install Qt
-for osx: 
+for osx:
 
     brew install qt
 
@@ -239,12 +228,12 @@ and the gem:
     gem i jasmine-headless-webkit
 
 
-### run specs: 
+### run specs:
 
 rspec:
 
     cd fivetastic
-    rspec spec/acceptance/fivetastic_spec.rb
+    time rspec spec/acceptance/fivetastic_spec.rb
 
 
 jasmine:

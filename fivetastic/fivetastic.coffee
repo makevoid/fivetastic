@@ -524,8 +524,6 @@ class FiveTastic
         when "sass" then "text/css"
         else console.log "ERROR: type '#{this.path_type()}' not detected"
           
-        
-
        
 g = window
 g.fivetastic = new FiveTastic
