@@ -4,39 +4,22 @@
 
 http://fivetastic.org
 
+
 ### Intro:
 
 To start your own site/app with FiveTastic:
 
 - fork/download fivetastic (forking is good so you can update to the latest version fairly easily)
-   
-
-type this in the fivetastic folder:
+- use a standard webserver like apache to host it or follow the following rules to launch a ruby rack server
 
     rackup
 
-
-
-note: if you don't have rack
+note: if you don't have rack installed
 
     gem install bundler
     bundle install
 
 in the app's folder
-
-### Deploy:
-
-host it on your usual web server (apache, nginx etc) by putting this in your .htaccess or virtualhost
-
-apache:
-
-    see .htaccess
-
-nginx:
-
-    if (!-e $request_filename) {
-      rewrite ^.+$ / break;
-    }
 
 
 ### Guide:
@@ -56,13 +39,13 @@ for the default page:
 
 ### Routes
 
-basic routes support is done, see routes.json
+Routes are defined in routes.json as a JSON hash.
 
-TODO: Routing system to be defined.... 
-
-need support:
-- ../* (star) routes 
-- seo requests (ruby-rack/php/static fallback)
+{
+  "/":            "index",    # this maps the root url to a page named index
+  "/page":        "page",     # standard mapping
+  "/category/*":  "category"  # star route, maps all urls starting with '/category/'
+}
 
 
 ### Libraries:
@@ -95,6 +78,21 @@ It's static! host it everywhere!
 You can apache, nginx etc..
 
 note: for apache you need to copy the .htaccess file and have mod_rewrite module enabled
+
+
+### Deploy:
+
+host it on your usual web server (apache, nginx etc) by putting this in your .htaccess or virtualhost
+
+apache:
+
+    see .htaccess
+
+nginx:
+
+    if (!-e $request_filename) {
+      rewrite ^.+$ / break;
+    }
 
 
 ### Cloud9 IDE Integration
@@ -165,6 +163,7 @@ easiest solution, reimplement it in ruby, host it with fiveapi.com to maximize r
 - markdown support
 - rake task to generate RapidWeaver Template
 - update vendored files
+- add mustache support
 
 public api
 --
