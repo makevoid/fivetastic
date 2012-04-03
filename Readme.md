@@ -160,6 +160,8 @@ Use a proxy that matches the user agent and redirects the request to another ser
 
 - handle 404s
 
+- relative paths support (to try it without a web server)
+
 - update codemirror
 - support pushstate in IE8 trough https://github.com/balupton/history.js
 
