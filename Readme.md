@@ -221,26 +221,28 @@ to update vendor/all.js that contains all vendored libs and init.js, all in one 
 
 ### setup test environment:
 
-FiveTastic uses jasmine-headless-webkit ruby gem to run specs, more infos here: http://johnbintz.github.com/jasmine-headless-webkit/
+FiveTastic uses jasmine-headless-webkit ruby gem to run js specs, more infos here: http://johnbintz.github.com/jasmine-headless-webkit/
 
 Basically you have to install Qt
 for osx:
 
     brew install qt
 
-and the gem:
+and then :
 
-    gem i jasmine-headless-webkit
+    cd fivetastic
+    bundle
 
 
 ### run specs:
 
-rspec:
+ruby (rspec):
 
     cd fivetastic
     time rspec spec/acceptance/fivetastic_spec.rb
 
 
-jasmine:
+js (jasmine):
 
-    time jasmine-headless-webkit -j spec/support/jasmine.yml
+    cd fivetastic
+    time jasmine-headless-webkit -j spec/jasmine.yml -c

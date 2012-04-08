@@ -1,6 +1,3 @@
-class Config
-  routes: "routes.json"
-
 
 class Fivetastic
   constructor: ->
@@ -11,32 +8,38 @@ class Fivetastic
     
   apply: (theme) ->
   
+  class @Config
+    routes: "routes.json"
+
+  class Router
+    constructor: ->
   
-class Router
-  constructor: ->
-  
-  load: (routes_file) ->
-    # $.get Config.routes 
-    #   ...
+    load: (routes_file) ->
+      # $.get Config.routes 
+      #   ...
     
-  route: (path) ->
+    route: (path) ->
   
   
-class Page
-  constructor: (name) ->
+  class Page
+    constructor: (name) ->
     
-  render: (format) ->
+    render: (format) ->
     
         
-class Renderer
+  class Renderer
+    constructor: ->
   
 
-class Editor
+  class Editor
   
   
-class Theme
+  class Theme
   
   
-class Storage
+  class Storage
   
   
+  
+  
+window.Fivetastic = Fivetastic
