@@ -382,4 +382,4 @@ Property.prototype.copy = function() {
 
 Property.prototype.toString = function() {
   return '  ' + this.name + ': ' + this.val + ';'
-}
+};

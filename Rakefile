@@ -7,15 +7,18 @@ task :compile_js do
   all = "#{path}/fivetastic/vendor/all.js"
   `rm -f #{all}`
   file = File.open all, "w"
+  vendor = []
   Dir.glob("#{path}/fivetastic/vendor/*/*.js").each do |f|
-    file.puts File.read(f)
+    vendor << f
   end
-  vendor = Dir.glob("#{path}/fivetastic/vendor/*.js")
+  vendor += Dir.glob("#{path}/fivetastic/vendor/*.js")
   # comment this to exclude codemirror
   vendor = vendor - ["#{path}/fivetastic/vendor/codemirror.js"]
-  # vendor = vendor - ["#{path}/fivetastic/vendor/jquery.js"]
-  vendor = vendor - ["#{path}/fivetastic/vendor/zepto.js"]
+  vendor = vendor - ["#{path}/fivetastic/vendor/jquery.js"]
+  vendor = vendor - ["#{path}/fivetastic/vendor/all.js"]
+  # vendor = vendor - ["#{path}/fivetastic/vendor/zepto.js"]
   vendor.each do |f|
+    puts f
     file.puts File.read(f)
   end
   file.puts File.read("#{path}/fivetastic/init.js")
