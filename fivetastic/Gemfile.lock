@@ -79,6 +79,7 @@ DEPENDENCIES
   guard
   guard-rspec
   jasmine-headless-webkit
+  rack
   rspec-core
   rspec-expectations
   rspec-mocks

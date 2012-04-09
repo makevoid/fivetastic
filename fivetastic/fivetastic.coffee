@@ -312,12 +312,14 @@ class FiveTastic
     @in_dev_mode = true
     # console.log "fivetastic is running in dev mode"
     
-    $("head").append "<script src='/fivetastic/vendor/codemirror.js'></script>"
-    
     this.load_vendor_css "codemirror"
     this.load_vendor_css "codemirror_themes/default"
-  
-    this.editor.full_render()
+    
+    # $("#codemirror_elem").on "load", ->
+    $.get "/fivetastic/vendor/codemirror.js", (data) =>
+      eval data
+      window.CodeMirror = CodeMirror
+      this.editor.full_render()
 
   
   editor:   
