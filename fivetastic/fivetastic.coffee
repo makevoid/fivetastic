@@ -527,19 +527,20 @@ class FiveTastic
         else console.log "ERROR: type '#{this.path_type()}' not detected"
           
        
-g = window
-g.fivetastic = new FiveTastic
-
-unless g.jasmine
-  g.fivetastic.start()
-  
-  # g.fivetastic.dev_mode()
-  # debug
-  # setTimeout -> 
-  #   $("#dev_controls a:first").trigger "click"
-  #   
-  #   setTimeout ->
-  #      $("#editor .screen_hsplit").trigger "click"
-  #   , 100
-  #      
-  # , 300
+g = window           
+g.FiveTastic = FiveTastic
+# g.fivetastic = new FiveTastic
+# 
+# unless g.jasmine
+#   g.fivetastic.start()
+#   
+#   # g.fivetastic.dev_mode()
+#   # debug
+#   # setTimeout -> 
+#   #   $("#dev_controls a:first").trigger "click"
+#   #   
+#   #   setTimeout ->
+#   #      $("#editor .screen_hsplit").trigger "click"
+#   #   , 100
+#   #      
+#   # , 300

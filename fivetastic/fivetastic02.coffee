@@ -3,15 +3,18 @@ class Fivetastic
   constructor: ->
     @modes = ["dev", "prod"]
     @mode  = "prod"
+  
+  start: ->
     
+  
   render: (page) ->
     
   apply: (theme) ->
   
   class @Config
     routes: "routes.json"
-
-  class Router
+  
+  class @Router
     constructor: ->
   
     load: (routes_file) ->
@@ -21,25 +24,27 @@ class Fivetastic
     route: (path) ->
   
   
-  class Page
+  class @Page
     constructor: (name) ->
     
     render: (format) ->
     
         
-  class Renderer
+  class @Renderer
     constructor: ->
   
 
-  class Editor
+  class @Editor
   
   
-  class Theme
+  class @Theme
   
   
-  class Storage
+  class @Storage
   
   
   
-  
-window.Fivetastic = Fivetastic
+g = window 
+g.Fivetastic = Fivetastic
+unless g.jasmine
+  g.fivetastic.start()

@@ -15,8 +15,8 @@ task :compile_js do
   # comment this to exclude files
   vendor = vendor - ["#{path}/fivetastic/vendor/codemirror.js"]
   vendor = vendor - ["#{path}/fivetastic/vendor/all.js"]
-  vendor = vendor - ["#{path}/fivetastic/vendor/jquery.js"]
-  # vendor = vendor - ["#{path}/fivetastic/vendor/zepto.js"]
+  # vendor = vendor - ["#{path}/fivetastic/vendor/jquery.js"]
+  vendor = vendor - ["#{path}/fivetastic/vendor/zepto.js"]
 
   # debugging
   # file.puts "var date = new Date();"

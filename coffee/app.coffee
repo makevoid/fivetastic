@@ -1,4 +1,9 @@
 g = window
+g.fivetastic = new FiveTastic
+
+unless g.jasmine
+  g.fivetastic.start()
+
 $("body").bind "sass_loadeds", ->
   g.fivetastic.dev_mode() # comment this in production
   $("body").unbind "page_loaded"
