@@ -312,12 +312,14 @@ class FiveTastic
     @in_dev_mode = true
     # console.log "fivetastic is running in dev mode"
     
-    $("head").append "<script src='/fivetastic/vendor/codemirror.js'></script>"
-    
     this.load_vendor_css "codemirror"
     this.load_vendor_css "codemirror_themes/default"
-  
-    this.editor.full_render()
+    
+    # $("#codemirror_elem").on "load", ->
+    $.get "/fivetastic/vendor/codemirror.js", (data) =>
+      eval data
+      window.CodeMirror = CodeMirror
+      this.editor.full_render()
 
   
   editor:   
@@ -524,22 +526,21 @@ class FiveTastic
         when "sass" then "text/css"
         else console.log "ERROR: type '#{this.path_type()}' not detected"
           
-        
-
        
-g = window
-g.fivetastic = new FiveTastic
-
-unless g.jasmine
-  g.fivetastic.start()
-  
-  # g.fivetastic.dev_mode()
-  # debug
-  # setTimeout -> 
-  #   $("#dev_controls a:first").trigger "click"
-  #   
-  #   setTimeout ->
-  #      $("#editor .screen_hsplit").trigger "click"
-  #   , 100
-  #      
-  # , 300
+g = window           
+g.FiveTastic = FiveTastic
+# g.fivetastic = new FiveTastic
+# 
+# unless g.jasmine
+#   g.fivetastic.start()
+#   
+#   # g.fivetastic.dev_mode()
+#   # debug
+#   # setTimeout -> 
+#   #   $("#dev_controls a:first").trigger "click"
+#   #   
+#   #   setTimeout ->
+#   #      $("#editor .screen_hsplit").trigger "click"
+#   #   , 100
+#   #      
+#   # , 300

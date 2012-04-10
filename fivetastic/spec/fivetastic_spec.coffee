@@ -9,6 +9,6 @@ describe "FiveTastic", ->
   it "should load", ->
     # console.log FiveTastic
     expect(true).toEqual true
-    setFixtures(sandbox({class: 'my-class'}))
+    #setFixtures(sandbox({class: 'my-class'}))
     # $('#sandbox').myTestedClassRemoverPlugin()
-    expect($('#sandbox')).toHaveClass('my-class')
+    #expect($('#sandbox')).toHaveClass('my-class')

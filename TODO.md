@@ -34,3 +34,32 @@ txmt://open/?url=file://root@new.makevoid.com/.bash_profile&line=11&column=2
 
 	commandline fiveapi edit that calls?
 	ssh root@new.makevoid.com rmate /www/antani
+
+
+
+### Public API 
+
+- todo: define it and document it
+
+example:
+
+    resource = "articles"
+
+    load(resource)
+
+    load(resource)
+      spinner("on")
+      request ->
+        spinner("off")
+
+    with: extension
+
+    load(resource, { transition: "fade" })
+
+
+
+options:
+  
+    transition: transition
+
+    transitions: ["in", "out"], ["fade", ["slide", "direction"], "explode?", "text blur"]
