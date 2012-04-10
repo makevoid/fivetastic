@@ -15,6 +15,7 @@ task :compile_js do
   vendor = vendor - ["#{path}/fivetastic/vendor/codemirror.js"]
   # vendor = vendor - ["#{path}/fivetastic/vendor/jquery.js"]
   vendor = vendor - ["#{path}/fivetastic/vendor/zepto.js"]
+
   vendor.each do |f|
     file.puts File.read(f)
   end

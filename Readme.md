@@ -159,25 +159,6 @@ haml: https://github.com/uglyog/clientside-haml-js/tree/master/lib
 jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
 
 
-### TODO:
-
-- handle 404s
-- seo 
-
-easiest solution, reimplement it in ruby, host it with fiveapi.com to maximize results (this way should be fucking easy)!!!
-
-- update codemirror
-- support pushstate in IE8 trough https://github.com/balupton/history.js
-
-- specs
-- rewrite using better modularity
-
-- editing preview
-- full router support
-- markdown support
-- rake task to generate RapidWeaver Template
-- update vendored files
-
 public api
 --
 
@@ -203,9 +184,6 @@ public api
       transitions: ["in", "out"], ["fade", ["slide", "direction"], "explode?", "text blur"]
 
     
-  
-  
-
 
 ## Contributing:
 
