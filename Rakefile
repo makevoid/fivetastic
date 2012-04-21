@@ -15,8 +15,8 @@ task :compile_js do
   # comment this to exclude files
   vendor = vendor - ["#{path}/fivetastic/vendor/codemirror.js"]
   vendor = vendor - ["#{path}/fivetastic/vendor/all.js"]
-  # vendor = vendor - ["#{path}/fivetastic/vendor/jquery.js"]
-  vendor = vendor - ["#{path}/fivetastic/vendor/zepto.js"]
+  vendor = vendor - ["#{path}/fivetastic/vendor/jquery.js"]
+  # vendor = vendor - ["#{path}/fivetastic/vendor/zepto.js"]
 
   # backward compatibility
   # vendor = vendor - ["#{path}/fivetastic/vendor/haml/json2.js"]
@@ -25,7 +25,8 @@ task :compile_js do
   # file.puts "var date = new Date();"
   vendor.each do |f|
     puts f
-    # file.puts "console.log('loading #{f[51..-1]} ' + new Date() - date);"
+    # file.puts "console.log(new Date() - date + ' #{f[51..-1]} ');"
+    # file.puts "document.getElementById('spinner').innerHTML = new Date() - date + \" #{f[51..-1]} \";"
     file.puts File.read(f)
   end
   file.puts File.read("#{path}/fivetastic/init.js")

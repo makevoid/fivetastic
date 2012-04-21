@@ -4,7 +4,7 @@ class Fivetastic
     @mode  = "prod"
   
   start: ->
-    $("body").html("!!!!!!").css(color: "#000000", fontSize: "3em")
+    $("body").html("loaded").css(color: "#000000", fontSize: "3em")
     
   render: (page) ->
     

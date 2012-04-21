@@ -2,7 +2,7 @@ src_files:
   - vendor/all.js
   - spec_helper.coffee
   - init.js
-  - fivetastic02.coffee
+  - fivetastic.coffee
 
 helpers:
   - spec/helpers/jasmine-jquery.js
