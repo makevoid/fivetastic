@@ -1,1 +1,0 @@
-php enabled? <?php echo "yes!" ?>

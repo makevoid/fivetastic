@@ -5,7 +5,6 @@ class Fivetastic
     @mode  = "prod"
   
   start: ->
-    
   
   render: (page) ->
     

@@ -146,7 +146,7 @@ enjoy!
 
 coffeescript: http://jashkenas.github.com/coffee-script/extras/coffee-script.js
 haml: https://github.com/uglyog/clientside-haml-js/tree/master/lib
-jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js
+jquery: https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js
 
 
 ### Seo support
