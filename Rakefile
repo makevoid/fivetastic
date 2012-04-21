@@ -18,6 +18,9 @@ task :compile_js do
   # vendor = vendor - ["#{path}/fivetastic/vendor/jquery.js"]
   vendor = vendor - ["#{path}/fivetastic/vendor/zepto.js"]
 
+  # backward compatibility
+  # vendor = vendor - ["#{path}/fivetastic/vendor/haml/json2.js"]
+
   # debugging
   # file.puts "var date = new Date();"
   vendor.each do |f|

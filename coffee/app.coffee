@@ -1,8 +1,8 @@
 g = window
-g.fivetastic = new FiveTastic
+fivetastic = new Fivetastic
 
 unless g.jasmine
-  g.fivetastic.start()
+  fivetastic.start()
 
 $("body").bind "sass_loadeds", ->
   g.fivetastic.dev_mode() # comment this in production

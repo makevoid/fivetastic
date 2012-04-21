@@ -2,28 +2,31 @@
 <html>
   <head>
     <title>FiveTastic</title>
-    <script src="/fivetastic/vendor/all.js"></script>
-    <!--<script src="/fivetastic/init.js"></script> -->
-    <!-- Load the compiled version of the following files  -->
-    <!-- 
-    <script src="/fivetastic/vendor/coffeescript.js"></script>
-    <script src="/fivetastic/vendor/haml.js"></script>
-    <script src="/fivetastic/vendor/sass.js"></script>
-    <script src="/fivetastic/vendor/jquery.js"></script>
-    <script src="/fivetastic/init.js"></script>
-    -->
-    <!-- TODO: require zepto option -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style type='text/css'>
       body { 
         color: #FFF;
+        margin: 0;
+        padding: 0;
+      }
+      
+      #spinner {
+        color: #111;
+        font-size: 2em;
+        position: absolute;
+        text-align: center;
+        width: 100%;
+        top: 40%;
       }
     </style>
   </head>
   <body>
-    <div id='loading'>
+    <div id="loading">
       create sites and apps with HAML, CoffeeScript and Sass on the clientside!
       
       EDIT ME - this is basically your meta descrition, change this text and the page title before before publishing the site
-    </div>
+      <div id="spinner">loading...</div>
+    </div>  
+    <script src="/fivetastic/vendor/all.js"></script>
   </body>
 </html>

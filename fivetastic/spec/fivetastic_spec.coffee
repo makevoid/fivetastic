@@ -1,14 +1,9 @@
-# $("body").append "<div id='events'></div>"
-# events = $("#events")
-# g = window
-# g.fivetastic.start(events)
-
-
-describe "FiveTastic", ->
-  
-  it "should load", ->
-    # console.log FiveTastic
-    expect(true).toEqual true
-    #setFixtures(sandbox({class: 'my-class'}))
-    # $('#sandbox').myTestedClassRemoverPlugin()
-    #expect($('#sandbox')).toHaveClass('my-class')
+describe "Fivetastic", ->
+  it "defaults to prod mode", ->
+    five = new Fivetastic()
+    expect(five.mode).toEqual "prod"
+        
+  describe "Config", ->
+    it "has defaults routes path", ->
+      conf = new Fivetastic.Config()
+      expect(conf.routes).toEqual "routes.json"
