@@ -60,17 +60,16 @@ describe "Fivetastic", ->
         match = @router.matches route, "/deh/pagina"
         expect(match).toEqual { 0: "pagina" }
         
-      it "matches /:page", ->
-        route = { url: "/:page", file: "antani" }
-        match = @router.matches route, route.url
-        expect(match).toEqual { "page": "antani" }
-    
-      it "matches a subdir", ->
-        route = { url: "/sub/:page", file: "sub/antani" }
-        match = @router.matches route, "/sub/pagina"
-        expect(match).toEqual { "page": "pagina" } 
+      # it "matches /:page", ->
+      #   route = { url: "/:page", file: "antani" }
+      #   match = @router.matches route, route.url
+      #   expect(match).toEqual { "page": "antani" }
+      #     
+      # it "matches a subdir", ->
+      #   route = { url: "/sub/:page", file: "sub/antani" }
+      #   match = @router.matches route, "/sub/pagina"
+      #   expect(match).toEqual { "page": "pagina" } 
         
-    
     describe "route", ->
       
       it "starts with the location.pathname route", ->
@@ -79,17 +78,14 @@ describe "Fivetastic", ->
       it "routes /", ->
         @router.route "/"
         expect(@router.current.file).toEqual "index"
-        expect(@router.current.found).toEqual true
           
-      it "routes /page", ->
-        @router.route "/page"
-        # expect(@router.current.file).toEqual "page"
-        expect(@router.current.found).toEqual true
+      it "routes /pages/*", ->
+        @router.route "/pages/page"
+        expect(@router.current.file).toEqual "page"
           
       it "routes /asdasdas", ->
-        @router.route "/asdasd"
-        expect(@router.current.file).toEqual "index"
-        # expect(@router.current.found).toEqual false
+        @router.route "/asdasdas"
+        expect(@router.current.file).toEqual "not_found"
           
       it "triggers route_changed event", ->
         changed = false

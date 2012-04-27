@@ -25,7 +25,7 @@ class Fivetastic
     
   
   class @Router
-    default_routes: [{ url: "/", file: "index" }, { url: "/pages/:page", file: "page"  }, { url: "/*", file: "index"  }]
+    default_routes: [{ url: "/", file: "index" }, { url: "/pages/*", file: "page"  }, { url: "/*", file: "not_found"  }]
     current: undefined
     
     constructor: (events, routes) ->
@@ -57,17 +57,18 @@ class Fivetastic
         if match = @matches(route, path)
           @current = _.clone(route) 
           @current.params = match
-          @current.found = true
       $(document).triggerHandler "route_changed"
       
     # private  
     
     matches_star: (route, path) ->
-      { 0 : 'antani' } # TODO: finish here
-      
+      route_exp = route.url.replace(/\*/g, '(.+)').replace(/\//g, '\\/')
+      matches = path.match new RegExp(route_exp)
+      if matches
+        matches[1..-1]
+
     matches_semicolon: (route, path) ->
-      {}
-    
+      throw "NotImplementedError: router.matches_semicolon"
     
     current_url_route: ->
       location.pathname
