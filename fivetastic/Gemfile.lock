@@ -33,6 +33,7 @@ GEM
     guard-rspec (0.7.0)
       guard (>= 0.10.0)
     hike (1.2.1)
+    iced-coffee-script-source (1.2.0o)
     jasmine-core (1.1.0)
     jasmine-headless-webkit (0.8.4)
       coffee-script
@@ -75,9 +76,11 @@ PLATFORMS
 DEPENDENCIES
   capybara!
   capybara-webkit
+  coffee-script
   growl
   guard
   guard-rspec
+  iced-coffee-script-source (= 1.2.0o)
   jasmine-headless-webkit
   rack
   rspec-core

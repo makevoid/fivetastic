@@ -17,5 +17,8 @@ group :test do
 
   gem "syntax"
 
+  gem "coffee-script"
+  gem "iced-coffee-script-source", "1.2.0o"
+
   gem "jasmine-headless-webkit"
 end
